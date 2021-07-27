@@ -133,7 +133,7 @@ dm=d-maSignal
 d_color=d>=0? (d>d[1]?color.green:color.orange) : (d<d[1]?color.red:color.orange)
 
 moef (data) =>
-	src = norm(data)/
+	src = norm(data)/2
 	src1 = nz(src[1], src)
 	src2 = nz(src[2], src1)
 	src3 = nz(src[3], src2)
