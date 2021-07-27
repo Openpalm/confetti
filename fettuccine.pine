@@ -1,0 +1,183 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © LucemAnb
+
+//@version=4
+//@author=lucemanb
+
+//
+//       THIS CODE IS BASED FROM THE MT4 ZIGZAG INDICATOR
+//       THE ZIGZAG SETTINGS FOR THE MAIN ONE ON TRADINGVIEW DO NOT WORK THE SAME AS MT4
+//       I HOPE U LOVE IT
+//
+
+// Ping me for donations, Collaborations or Support
+
+
+////////
+// Seek Menu
+study("zigzag ma bb confetti", shorttitle = "fettucini heuristics",  max_labels_count=51, max_lines_count=50, overlay = true)
+
+
+////////
+// Fetch Ingredients 
+// [  zig zag ] 
+
+DebugCompact = input(title="Compact", group="Debug", type=input.bool, defval=true, inline = "TD") 
+
+//Input: Labels
+messagePriceHighAlert  = ""
+messagePriceHighStrongAlert  = ""
+messagePriceLowAlert  = ""
+messagePriceLowStrongAlert  = ""
+messagePriceHighAlert := DebugCompact ? "Sell" : "Sell Long/Short" 
+messagePriceHighStrongAlert := DebugCompact ? "Sell" : "Sell Long/Short\n(Strong)" 
+messagePriceLowAlert :=  DebugCompact ?  "Buy" : "Buy Long/Short" 
+messagePriceLowStrongAlert := DebugCompact ? "Buy" : "Buy Long/Short\n(Strong)"
+
+//Inpu
+//Input: Moving Average
+fastPeriodLen = 10
+slowPeriodLen = 32
+fastPeriod = input(title="Fast Period", group="Moving Average", type=input.integer, defval=fastPeriodLen, minval=2, maxval=100, inline="MA")
+slowPeriod = input(title="Slow Period", group="Moving Average", type=input.integer, defval=slowPeriodLen, minval=2, maxval=100, tooltip = "Number of periods to calculte the fast and slow EMA.", inline="MA")
+
+//Input: Zig-Zag
+zigperiod = fastPeriod
+upcolor = color.green
+downcolor = color.red
+txtcol = color.white
+zigstyle = "Solid"
+zigwidth = 3
+len = 5
+src = close
+var dir1 = 0
+var max_array_size = 20
+var ziggyzags = array.new_float(0)
+messageLabelHigh = messagePriceHighAlert
+messageLabelLow = messagePriceLowAlert
+
+
+
+
+//////// 
+// Bake
+// [
+
+//Function: Truncate
+truncate(number, decimals) =>
+    factor = pow(10, decimals)
+    int(number * factor) / factor
+
+//Function: Percent    
+percent(n1, n2) =>
+    ((n1 - n2) / n2) * 100
+    
+//Function: Zig-Zag
+add_to_zigzag(pointer, value, bindex)=>
+    array.unshift(pointer, bindex)
+    array.unshift(pointer, value)
+    if array.size(pointer) > max_array_size
+        array.pop(pointer)
+        array.pop(pointer)
+    
+update_zigzag(pointer, value, bindex, dir)=>
+    if array.size(pointer) == 0
+        add_to_zigzag(pointer, value, bindex)
+    else
+        if (dir == 1 and value > array.get(pointer, 0)) or (dir == -1 and value < array.get(pointer, 0))
+            array.set(pointer, 0, value)
+            array.set(pointer, 1, bindex)
+        0.
+
+actualValue(src, len, isHigh, _style, _yloc, _color) =>
+    pivot = nz(src[len])
+    isFound = true
+    for i = 0 to len - 1
+        if isHigh and src[i] > pivot
+            isFound := false
+
+        if not isHigh and src[i] < pivot
+            isFound := false
+    
+    for i = len + 1 to 2 * len
+        if isHigh and src[i] >= pivot
+            isFound := false
+
+        if not isHigh and src[i] <= pivot
+            isFound := false
+
+    messageLabel = isHigh ? messageLabelHigh : messageLabelLow
+
+    if isFound
+        label.new(bar_index[len], pivot, messageLabel, style=_style, yloc=_yloc, color=_color, textcolor=txtcol)
+
+//Logic: Zig-Zag
+out= ema(src, len)
+float highs = highestbars(high, zigperiod) == 0 ? high : na
+float lows = lowestbars(low, zigperiod) == 0 ? low : na
+dir1 := iff(highs and na(lows), 1, iff(lows and na(highs), -1, dir1))
+dir1changed = change(dir1)
+if highs or lows
+    if dir1changed 
+        add_to_zigzag(ziggyzags, dir1 == 1 ? highs : lows, bar_index)
+    else
+        update_zigzag(ziggyzags, dir1 == 1 ? highs : lows, bar_index, dir1)
+
+if array.size(ziggyzags) >= 6
+    var line zzline1 = na
+    var label zzlabel1 = na
+    var label zzlabelcur = na
+    float val = array.get(ziggyzags, 0)
+    int point = round(array.get(ziggyzags, 1))
+    plabel = ""
+    labelcol = downcolor
+    if change(val) or change(point)
+        float val1 = array.get(ziggyzags, 2)
+        int point1 = round(array.get(ziggyzags, 3))
+
+        plabel := dir1 == 1 ? tostring(high) : tostring(low)
+        plabel += "\n" + tostring(truncate(percent(val,val1), 3)) + "%"
+
+        labelcol := dir1 == 1 ? array.get(ziggyzags, 0) > out ? upcolor : downcolor : array.get(ziggyzags, 0) < out ? downcolor : upcolor
+
+        if change(val1) == 0 and change(point1) == 0
+            line.delete(zzline1)
+            label.delete(zzlabel1)
+
+        if (false)
+            zzline1 := line.new(x1 = point, x2 = point1, y1 = val, y2 = val1, color = dir1 == 1 ? upcolor : downcolor, width = zigwidth, style = zigstyle == "Solid" ? line.style_solid : line.style_dotted)
+    
+        if (true)
+            zzlabel1 := label.new(x = point, y = val, text = plabel, color = labelcol, textcolor = txtcol, style = dir1 == 1 ? label.style_label_down : label.style_label_up) 
+            
+    pROCLevel = roc(close, fastPeriod)
+    rocLevels = 0.0
+    for n = 0 to fastPeriod-1
+        rocLevels += roc(close[n], fastPeriod)
+    maROCLevel = rocLevels/fastPeriod
+    pivotLevel = percent(close,val)
+
+    plabel := "Price: " + tostring(close)
+    plabel += "\nPivot: " + tostring(truncate(pivotLevel, 3)) + "%"
+    plabel += "\n"
+    plabel += "\nPivot RoC: " + tostring(pROCLevel, "#.###") + "%"
+    plabel += "\nMA RoC: " + tostring(maROCLevel, "#.###") + "%"
+
+    labelcol := dir1 == 1 ? array.get(ziggyzags, 0) > out ? upcolor : downcolor : array.get(ziggyzags, 0) < out ? downcolor : upcolor
+        
+    if (true)
+        if zzlabelcur == na
+            zzlabelcur := label.new(bar_index+1, close, text = plabel, textcolor = color.white, style = label.style_label_left, color = close > open ? color.green : color.red)
+        label.set_xy(zzlabelcur,bar_index+1, close)
+        label.set_color(zzlabelcur,close > open ? color.green : color.red)
+        label.set_text(zzlabelcur,plabel)
+   
+
+
+
+shift = close * 0.1
+plot(ema(close,20)-shift, style=plot.style_circles, color = color.fuchsia,  linewidth=1 )
+plot(ema(close,50)-shift, style=plot.style_circles, color = color.orange,  linewidth=1 )
+plot(ema(close,100)-shift, style=plot.style_circles, color = color.white,  linewidth=1 )
+
+plot(sma(close, 20), "Basis", color=color.green)
