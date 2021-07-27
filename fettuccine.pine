@@ -16,30 +16,70 @@
 ////////
 // Seek Menu
 study("zigzag ma bb confetti", shorttitle = "fettucini heuristics",  max_labels_count=51, max_lines_count=50, overlay = true)
+//bb
+bb() => 
+	length = 20
+	src = close
+	mult = 2.0
+	basis = sma(src, length)
+	dev = mult * stdev(src, length)
+	upper = basis + dev
+	lower = basis - dev
+	offset = input(0, "Offset", type = input.integer, minval = -500, maxval = 500)
+	[upper, lower, basis, offset]
 
+[upper, lower, basis, offset]= bb()
+
+bbp1 = plot(upper, "Upper", color=#2962FF, offset = offset)
+bbp2 = plot(lower, "Lower", color=#2962FF, offset = offset)
+//plot(basis, "Basis", color=#FF6D00, offset = offset)
+fill(bbp1, bbp2, title = "Background", color=color.rgb(33, 150, 243, 95))
+// LB MA uptrend
+
+f_LazyLine(_data, _length) =>
+    w1 = 0, w2 = 0, w3 = 0
+    L1 = 0.0, L2 = 0.0, L3 = 0.0
+    w = _length / 3
+    
+    if _length > 2 
+        w2 := round(w)
+        w1 := round((_length-w2)/2)
+        w3 :=   int((_length-w2)/2)
+        
+        L1 := wma(_data, w1)
+        L2 := wma(L1, w2)
+        L3 := wma(L2, w3)
+    else
+        L3 := _data
+    L3
+price       = input(title = "Source",                 type = input.source,  defval = close)
+alpha       = input(title = "Combined Smoothness",    type = input.integer, defval = 14, minval = 1)
+
+LL = f_LazyLine(price, alpha)
+
+c_up        = color.new(#33ff00, 0)
+c_dn        = color.new(#ff1111, 0)
+uptrend     = LL > LL[1]
+
+//plot(LL,                "SS_WMA Line",  color = uptrend ? c_up : c_dn,  linewidth=1)
+//plot(wma(price, alpha), "WMA",          color = color.purple,           display=0)
 
 ////////
 // Fetch Ingredients 
 // [  zig zag ] 
 
-DebugCompact = input(title="Compact", group="Debug", type=input.bool, defval=true, inline = "TD") 
 
 //Input: Labels
 messagePriceHighAlert  = ""
-messagePriceHighStrongAlert  = ""
 messagePriceLowAlert  = ""
-messagePriceLowStrongAlert  = ""
-messagePriceHighAlert := DebugCompact ? "Sell" : "Sell Long/Short" 
-messagePriceHighStrongAlert := DebugCompact ? "Sell" : "Sell Long/Short\n(Strong)" 
-messagePriceLowAlert :=  DebugCompact ?  "Buy" : "Buy Long/Short" 
-messagePriceLowStrongAlert := DebugCompact ? "Buy" : "Buy Long/Short\n(Strong)"
+
 
 //Inpu
 //Input: Moving Average
 fastPeriodLen = 10
 slowPeriodLen = 32
-fastPeriod = input(title="Fast Period", group="Moving Average", type=input.integer, defval=fastPeriodLen, minval=2, maxval=100, inline="MA")
-slowPeriod = input(title="Slow Period", group="Moving Average", type=input.integer, defval=slowPeriodLen, minval=2, maxval=100, tooltip = "Number of periods to calculte the fast and slow EMA.", inline="MA")
+fastPeriod = input(title="Fast Period", group="ZigZag Moving Average", type=input.integer, defval=fastPeriodLen, minval=2, maxval=100, inline="MA")
+slowPeriod = input(title="Slow Period", group="ZigZag Moving Average", type=input.integer, defval=slowPeriodLen, minval=2, maxval=100, tooltip = "Number of periods to calculte the fast and slow EMA.", inline="MA")
 
 //Input: Zig-Zag
 zigperiod = fastPeriod
@@ -55,9 +95,6 @@ var max_array_size = 20
 var ziggyzags = array.new_float(0)
 messageLabelHigh = messagePriceHighAlert
 messageLabelLow = messagePriceLowAlert
-
-
-
 
 //////// 
 // Bake
@@ -89,28 +126,6 @@ update_zigzag(pointer, value, bindex, dir)=>
             array.set(pointer, 1, bindex)
         0.
 
-actualValue(src, len, isHigh, _style, _yloc, _color) =>
-    pivot = nz(src[len])
-    isFound = true
-    for i = 0 to len - 1
-        if isHigh and src[i] > pivot
-            isFound := false
-
-        if not isHigh and src[i] < pivot
-            isFound := false
-    
-    for i = len + 1 to 2 * len
-        if isHigh and src[i] >= pivot
-            isFound := false
-
-        if not isHigh and src[i] <= pivot
-            isFound := false
-
-    messageLabel = isHigh ? messageLabelHigh : messageLabelLow
-
-    if isFound
-        label.new(bar_index[len], pivot, messageLabel, style=_style, yloc=_yloc, color=_color, textcolor=txtcol)
-
 //Logic: Zig-Zag
 out= ema(src, len)
 float highs = highestbars(high, zigperiod) == 0 ? high : na
@@ -134,9 +149,9 @@ if array.size(ziggyzags) >= 6
     if change(val) or change(point)
         float val1 = array.get(ziggyzags, 2)
         int point1 = round(array.get(ziggyzags, 3))
-
-        plabel := dir1 == 1 ? tostring(high) : tostring(low)
-        plabel += "\n" + tostring(truncate(percent(val,val1), 3)) + "%"
+        pr = dir1 == 1 ? tostring(high) : tostring(low)
+        plabel := dir1 == 1 ? tostring(high,"#.##") : tostring(low,"#.##")
+        plabel += "\n" + tostring(truncate(int(percent(val,val1)), 2)) + "%"
 
         labelcol := dir1 == 1 ? array.get(ziggyzags, 0) > out ? upcolor : downcolor : array.get(ziggyzags, 0) < out ? downcolor : upcolor
 
@@ -157,11 +172,10 @@ if array.size(ziggyzags) >= 6
     maROCLevel = rocLevels/fastPeriod
     pivotLevel = percent(close,val)
 
-    plabel := "Price: " + tostring(close)
-    plabel += "\nPivot: " + tostring(truncate(pivotLevel, 3)) + "%"
-    plabel += "\n"
-    plabel += "\nPivot RoC: " + tostring(pROCLevel, "#.###") + "%"
-    plabel += "\nMA RoC: " + tostring(maROCLevel, "#.###") + "%"
+    plabel := tostring(truncate(pivotLevel, 2)) + "%"
+    //plabel += "\n"
+    //plabel += "\nRoC: " + tostring(pROCLevel, "#.##") + "%"
+
 
     labelcol := dir1 == 1 ? array.get(ziggyzags, 0) > out ? upcolor : downcolor : array.get(ziggyzags, 0) < out ? downcolor : upcolor
         
@@ -175,9 +189,24 @@ if array.size(ziggyzags) >= 6
 
 
 
-shift = close * 0.1
-plot(ema(close,20)-shift, style=plot.style_circles, color = color.fuchsia,  linewidth=1 )
-plot(ema(close,50)-shift, style=plot.style_circles, color = color.orange,  linewidth=1 )
-plot(ema(close,100)-shift, style=plot.style_circles, color = color.white,  linewidth=1 )
+sMA(src, length) =>
+// Get standard OHLC candle values
+	tClose = close
 
-plot(sma(close, 20), "Basis", color=color.green)
+	// Inputs
+
+	// SuperSmoother filter
+	// © 2013  John F. Ehlers
+	pi = 2 * asin(1)
+	a = exp(-1.414 * pi / length)
+	b = 2 * a * cos(1.414 * pi / length)
+	c2 = b
+	c3 = -a * a
+	c1 = 1 - c2 - c3
+
+	ssf = 0.0
+	ssf := (c1 * ((src + nz(src[1])) / 2)) + (c2 * nz(ssf[1])) + (c3 * nz(ssf[2]))
+
+plot(basis, "Basis", color=uptrend ? c_up : c_dn)
+plot(ema(close,50), style=plot.style_line, color = color.orange,  linewidth=1 )
+plot(ema(close,100), style=plot.style_line, color = color.white,  linewidth=1 )
