@@ -3,14 +3,6 @@ study("kdj rsi vol confetti", shorttitle='"science #1"')
 
 res = input(title="Timeframe", type=input.resolution, defval="")
 
-hline(0, "Center", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
-band0 = hline(100, "Top", color=color.new(color.green, 50), linestyle=hline.style_dashed)
-band1 = hline(-250, "Bottom", color=color.new(color.red, 50), linestyle=hline.style_dashed)
-band3 = hline(-100, "Bottom", color=color.new(color.red, 50), linestyle=hline.style_dashed)
-band4 = hline(-200, "Bottom", color=color.new(color.red, 50), linestyle=hline.style_dashed)
-
-fill(band1, band0, color=color.rgb(126, 87, 194, 90), title="Background")
-
 HTFo = timeframe.period == '1'   ?   '3'     : 
   timeframe.period == '3'   ?   '5'    : 
   timeframe.period == '5'   ?   '15'    : 
@@ -25,6 +17,13 @@ HTFo = timeframe.period == '1'   ?   '3'     :
   
 [l, c, h, o, v] = security(syminfo.tickerid, res == "" ? HTFo: res, [low, close, high, open, volume])
 [ll, cc, hh, oo, vv] = security(syminfo.tickerid, timeframe.period, [low, close, high, open, volume])
+
+//stoch
+speriodK = input(14, title="%K Length", minval=1)
+ssmoothK = input(1, title="%K Smoothing", minval=1)
+speriodD = input(3, title="%D Smoothing", minval=1)
+kk = sma(stoch(close, high, low, speriodK), ssmoothK)
+dd = sma(kk, speriodD)
 
 //kdj
 length = input(9, title="period")
@@ -57,28 +56,155 @@ rsicross = rsi1 > rsi2 and rsi2 > rsi3
 rsi = rsi(close, 7)
 rsi_color = rsi > 75 ? color.red : rsi < 27 ? rsicross? color.yellow : color.green : color.white
 
-
 // volume
 norm(data) =>
     a = (data-sma(data, 3))
     b = stdev(data,3)
     ema(a/b, 12)
 
-lb_vol() =>
+lb_vol(vol,cloz) =>
     slow = input(12, "Short period")
     fast = input(26, "Long period")
     signal = input(9, "Smoothing period")
-    maFast = ema( vv * cc, fast ) / ema( vv, fast ) 
-    maSlow = ema( vv * cc, slow ) / ema( vv, slow )
+    maFast = ema( vol * cloz, fast ) / ema( vol, fast ) 
+    maSlow = ema( vol * cloz, slow ) / ema( vol, slow )
     d = maSlow - maFast 
     maSignal = ema( d, signal ) 
     dm=d-maSignal
     d_color=d>=0? (d>d[1]?color.green:color.orange) : (d<d[1]?color.red:color.orange)
     [d, dm, d_color]
  
-[d, dm, d_color] = lb_vol()
+//moef 
+
+moef (data) =>
+	src = norm(data)*1.1
+	src1 = nz(src[1], src)
+	src2 = nz(src[2], src1)
+	src3 = nz(src[3], src2)
+
+	moef = src
+	moef := 0.13785 * (2 * src - src1) +
+	         0.0007 * (2 * src1 - src2) +
+	         0.13785 * (2 * src2 - src3) +
+	         1.2103 * nz(moef[1], moef) -
+	         0.4867 * nz(moef[2], moef)
+	moef
+	moefColor = #6d1e7f
+	[moef, moefColor]
+ 
+[d, dm, d_color] = lb_vol(vv,cc)
+[cd, cdm, cd_color] = lb_vol(volume,close)
+[theMoef, moefColor] = moef(cd)
+
+// homodyne 
+
+// --- Start the Homodyne Discriminator Caculations
+//
+// Mutable Variables (non-series)
+HomodyneDiscriminator(data) =>
+    C1     = 0.0962
+    C2     = 0.5769
+    Df     = 0.5
+
+    //
+    float Period = na
+    C3      = (nz(Period[1])*0.075+0.54)
+    smooth    = ((data*8.0) + (data[1]*6.0) + (data[2]*4.0) + (data[3]))/10.0
+    dDeTrend  = (smooth*C1 + nz(smooth[2])*C2 - nz(smooth[4])*C2 - nz(smooth[6])*C1)*C3
+
+    // Compute InPhase and Quadrature components
+    Q1      = (dDeTrend*C1 + nz(dDeTrend[2])*C2 - nz(dDeTrend[4])*C2 - nz(dDeTrend[6])*C1)*C3
+    I1      = nz(dDeTrend[3])
+
+    // Advance Phase of I1 and Q1 by 90 degrees
+    jI      = (I1*C1 + nz(I1[2])*C2 - nz(I1[4])*C2 - nz(I1[6])*C1)*C3
+    jQ      = (Q1*C1 + nz(Q1[2])*C2 - nz(Q1[4])*C2 - nz(Q1[6])*C1)*C3
+
+    // Phaser addition for 3 bar averaging
+    I2_  = I1 - jQ
+    Q2_  = Q1 + jI
+    // Smooth i and q components before applying discriminator
+    I2 = 0.0
+    I2  := 0.2*I2_ + 0.8*nz(I2[1])
+    Q2 = 0.0
+    Q2  := 0.2*Q2_ + 0.8*nz(Q2[1])
+
+    // Extract Homodyne Discriminator
+    Re_ = I2*nz(I2[1]) + Q2*nz(Q2[1])
+    Im_ = I2*nz(Q2[1]) - Q2*nz(I2[1])
+    Re = 0.0
+    Re  := 0.2*Re_ + 0.8*nz(Re[1])
+    Im = 0.0
+    Im  := 0.2*Im_ + 0.8*nz(Im[1]) 
+
+    dp_ = iff(Re!=0 and Im!=0 , 6.28318/atan(Im/Re) , 0)
+    II  = nz(Period[1])
+    dp  = max(max(min(min(dp_,1.5*II),50),0.6667*II),6)
+    Period := dp*0.2 + nz(Period[1])*0.8
+    SmoothPeriod = 0.0
+    SmoothPeriod := 0.33*Period + nz(SmoothPeriod[1])*0.67
+    RVILength = round(SmoothPeriod*Df -1)
+    p = 0.0
+    p := p + SmoothPeriod[0]
+    p := floor(p)
+    p := round(p)
+    //plot(p)
+    //p = integer()
+    CO=volume*close-volume*open
+    HL=high*volume-low*volume
+
+    value1 = (CO + 2*CO[1] + 2*CO[2] + CO[3])/6
+    value2 = (HL + 2*HL[1] + 2*HL[2] + HL[3])/6
+    num=0.0
+    denom=0.0
+
+    looplength = 100
+    for i = 0 to looplength
+        if (i >= RVILength)
+            break
+        num:=num + value1[i]
+        denom:=denom + value2[i]
+
+
+    RVI=denom!=0?num/denom:0
+    RVIsig=(RVI+ 2*RVI[1] + 2*RVI[2] + RVI[3])/6
+    [RVI, RVIsig]
+
+[RVI, RVIsig] = HomodyneDiscriminator(close)
+//p1 = plot(RVI,color=color.lime,style=plot.style_line,linewidth=1)
+//p2 = plot(RVIsig,color=color.red,style=plot.style_line,linewidth=1)
+
+hist = (RVI - RVIsig) * 2
+hist_color = hist > 0 ? (hist > hist[1] ? color.lime : color.green) : (hist < hist[1] ? #EF3232 : color.red )
+
+
+// Plotting
+
+hline(0, "Center", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
+
+band0 = hline(100, "Top", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
+band1 = hline(-100, "Bottom", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
+band3 = hline(-200, "Bottom", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
+band4 = hline(-300, "Bottom", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
+
+fill(band0, band4, color=color.rgb(126, 87, 194, 90), title="Background")
+// lower threshholds
+rsiOversoldThreshhold = hline(30, "rsi", color=color.new(color.green, 50), linestyle=hline.style_dashed)
+kdjOversoldThreshhold = hline(-80, "kdj", color=color.new(color.green, 50), linestyle=hline.style_dashed)
+volOversoldThreshhold = hline(-190, "vol", color=color.new(color.green, 50), linestyle=hline.style_dashed)
+stochOversoldThreshhold = hline(-275, "stoch", color=color.new(color.green, 50), linestyle=hline.style_dashed)
+
+//upper threshholds
+rsiOverboughtThreshhold = hline(70, "rsi", color=color.new(color.red, 50), linestyle=hline.style_dashed)
+kdjOerboughtThreshhold = hline(-30, "kdj", color=color.new(color.red, 50), linestyle=hline.style_dashed)
+volOverboughtThreshhold = hline(-110, "vol", color=color.new(color.red, 50), linestyle=hline.style_dashed)
+stochOverboughtThreshhold = hline(-215, "stoch", color=color.new(color.red, 50), linestyle=hline.style_dashed)
 
 plot(rsi, color= rsi_color, transp=0, linewidth=2, style=plot.style_circles, title="RSI")
 plot(avg(pK, pD)-kshift, color=color.orange, transp=0, linewidth=1, title="KD")
 plot(pJ-kshift, color=color.fuchsia, transp=0, linewidth=1, title="J")
 plot(norm(d)*50-150, color = d_color)
+plot(kk-300, title="%K", color=#2962FF)
+plot(dd-300, title="%D", color=#FF6D00)
+plot((theMoef)*50-150, title="MOEF", linewidth=1, color=color.fuchsia, transp=0)
+plot(hist*50, color=hist_color, title="Hist", style=plot.style_columns, transp=75)
