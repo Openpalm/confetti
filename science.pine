@@ -92,10 +92,6 @@ moef (data) =>
 	moefColor = #6d1e7f
 	[moef, moefColor]
  
-[d, dm, d_color] = lb_vol(vv,cc)
-[cd, cdm, cd_color] = lb_vol(volume,close)
-[theMoef, moefColor] = moef(cd)
-[pK, pD, pJ, kshift] = kdj()
 // homodyne 
 
 // --- Start the Homodyne Discriminator Caculations
@@ -174,7 +170,10 @@ HomodyneDiscriminator(data) =>
     [RVI, RVIsig, RVIhist, RVIhist_color]
 
 [RVI, RVIsig, RVIhist, RVIhist_color] = HomodyneDiscriminator(close)
-
+[d, dm, d_color] = lb_vol(vv,cc)
+[cd, cdm, cd_color] = lb_vol(volume,close)
+[theMoef, moefColor] = moef(cd)
+[pK, pD, pJ, kshift] = kdj()
 // Plotting
 
 band0 = hline(0, "Center", color=color.new(color.gray, 50), linestyle=hline.style_dashed)

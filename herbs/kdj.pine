@@ -1,0 +1,14 @@
+kdj() =>
+    length = input(9, title="period")
+    signal = input(3, title="signal")
+    hi = highest(h, length)
+    lo = lowest(l , length)
+    k = 100*((c-lo)/(hi-lo))
+    pK = ema(k, signal)
+    pD = ema(pK, signal)
+    pJ = 3*pK-2*pD
+    kshift = 100
+    [pK,pD, pJ, kshift]
+
+plot(avg(pK, pD)-kshift, color=color.orange, transp=0, linewidth=1, title="KD")
+plot(pJ-kshift, color=color.fuchsia, transp=0, linewidth=1, title="J"

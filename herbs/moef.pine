@@ -1,6 +1,11 @@
+norm(data) =>
+    a = (data-sma(data, 3))
+    b = stdev(data,3)
+    ema(a/b, 12)
+
 
 moef (data) =>
-	src = ZScoreNorm(data)/2
+	src = norm(data)/2
 	src1 = nz(src[1], src)
 	src2 = nz(src[2], src1)
 	src3 = nz(src[3], src2)

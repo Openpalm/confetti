@@ -1,0 +1,30 @@
+
+f_LazyLine(_data, _length) =>
+    w1 = 0, w2 = 0, w3 = 0
+    L1 = 0.0, L2 = 0.0, L3 = 0.0
+    w = _length / 3 //divide period lengths by 3. "the number that shall not be counted"
+    
+    if _length > 2 
+        w2 := round(w) // make a integer square
+        w1 := round((_length-w2)/2) // cut it in half
+        w3 := int((_length-w2)/2) // make it an integer square
+        
+        L1 := wma(_data, w1) // average in steps of perfect squares 
+        L2 := wma(L1, w2) // fold a second time
+        L3 := wma(L2, w3) // fold squares a third time - this makes a line that "fits"
+    else
+        L3 := _data
+    L3
+    
+price       = input(title = "Source",                 type = input.source,  defval = close)
+alpha       = input(title = "Combined Smoothness",    type = input.integer, defval = 14, minval = 1)
+
+LL = f_LazyLine(price, alpha)
+
+c_up        = color.new(#33ff00, 0)
+c_dn        = color.new(#ff1111, 0)
+uptrend     = LL > LL[1]
+
+plot(f_LazyLine(close,50), style=plot.style_line, color = color.orange,  linewidth=1 )
+plot(f_LazyLine(close,100), style=plot.style_line, color = color.white,  linewidth=1 )
+plot(f_LazyLine(close,20), "Basis", color=uptrend ? c_up : c_dn // (bolinger band signal)

@@ -1,0 +1,36 @@
+// volume
+norm(data) =>
+    a = (data-sma(data, 3))
+    b = stdev(data,3)
+    ema(a/b, 12)
+
+moef (data) =>
+	src = norm(data)/2
+	src1 = nz(src[1], src)
+	src2 = nz(src[2], src1)
+	src3 = nz(src[3], src2)
+
+	moef = src
+	moef := 0.13785 * (2 * src - src1) +
+	         0.0007 * (2 * src1 - src2) +
+	         0.13785 * (2 * src2 - src3) +
+	         1.2103 * nz(moef[1], moef) -
+	         0.4867 * nz(moef[2], moef)
+	moef
+	moefColor = #6d1e7f
+	[moef, moefColor]
+
+lb_vol(vol,cloz) =>
+    slow = input(12, "Short period")
+    fast = input(26, "Long period")
+    signal = input(9, "Smoothing period")
+    maFast = ema( vol * cloz, fast ) / ema( vol, fast ) 
+    maSlow = ema( vol * cloz, slow ) / ema( vol, slow )
+    d = maSlow - maFast 
+    maSignal = ema( d, signal ) 
+    dm=d-maSignal
+    d_color=d>=0? (d>d[1]?color.green:color.orange) : (d<d[1]?color.red:color.orange)
+    [d, dm, d_color]
+//lazybear vol + exponential filter
+plot(norm(d)*50-150, color = d_color)
+plot((theMoef)*50-150, title="MOEF", linewidth=1, color=color.fuchsia, transp=0

@@ -1,0 +1,17 @@
+//bb
+bb() => 
+	length = 20
+	src = close
+	mult = 2.0
+	basis = sma(src, length)
+	dev = mult * stdev(src, length)
+	upper = basis + dev
+	lower = basis - dev
+	offset = input(0, "Offset", type = input.integer, minval = -500, maxval = 500)
+	[upper, lower, basis, offset]
+
+[upper, lower, basis, offset]= bb()
+
+bbp1 = plot(upper, "Upper", color=#2962FF, offset = offset)
+bbp2 = plot(lower, "Lower", color=#2962FF, offset = offset)
+bbp2 = plot(basis, "Sginal", color=color.fuchsia, offset = offset)

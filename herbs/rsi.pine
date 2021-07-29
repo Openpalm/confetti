@@ -1,0 +1,22 @@
+
+//RSI
+
+m_rsi(len) => 
+    src = input(close, "Source", type = input.source)
+    up = rma(max(change(src), 0), len)
+    down = rma(-min(change(src), 0), len)
+    rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+    rsi
+
+// Calculate RSI
+rsi1 = m_rsi(7)
+rsi2 = m_rsi(13)
+rsi3 = m_rsi(23)
+
+rsicross = rsi1 > rsi2 and rsi2 > rsi3
+
+// Calculate RSI
+rsi = rsi(close, 7)
+rsi_color = rsi > 75 ? color.red : rsi < 27 ? rsicross? color.yellow : color.green : color.white
+
+plot(rsi, color= rsi_color, transp=0, linewidth=2, style=plot.style_circles, title="RSI")
