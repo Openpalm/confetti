@@ -1,5 +1,5 @@
 // @version=4
-study("kdj rsi vol confetti", shorttitle='"science #1"')
+study("science #1", shorttitle='"science #1"')
 
 res = input(title="Timeframe", type=input.resolution, defval="")
 
@@ -8,7 +8,7 @@ HTFo = timeframe.period == '1'   ?   '3'     :
   timeframe.period == '5'   ?   '15'    : 
   timeframe.period == '15'  ?   '60'    : 
   timeframe.period == '30'  ?   '120'   : 
-  timeframe.period == '45'  ?   '120'   : 
+  timeframe.period == '45'  ?   '60'   : 
   timeframe.period == '60'  ?   '120'   : 
   timeframe.period == '120' ?   '240'   : 
   timeframe.period == '180' ?   '240'   : 
@@ -26,15 +26,17 @@ kk = sma(stoch(close, high, low, speriodK), ssmoothK)
 dd = sma(kk, speriodD)
 
 //kdj
-length = input(9, title="period")
-signal = input(3, title="signal")
-hi = highest(h, length)
-lo = lowest(l , length)
-k = 100*((c-lo)/(hi-lo))
-pK = ema(k, signal)
-pD = ema(pK, signal)
-pJ = 3*pK-2*pD
-kshift = 100
+kdj() =>
+    length = input(9, title="period")
+    signal = input(3, title="signal")
+    hi = highest(h, length)
+    lo = lowest(l , length)
+    k = 100*((c-lo)/(hi-lo))
+    pK = ema(k, signal)
+    pD = ema(pK, signal)
+    pJ = 3*pK-2*pD
+    kshift = 100
+    [pK,pD, pJ, kshift]
 
 //RSI
 
@@ -49,13 +51,11 @@ m_rsi(len) =>
 rsi1 = m_rsi(7)
 rsi2 = m_rsi(13)
 rsi3 = m_rsi(23)
-
 rsicross = rsi1 > rsi2 and rsi2 > rsi3
-
 // Calculate RSI
 rsi = rsi(close, 7)
 rsi_color = rsi > 75 ? color.red : rsi < 27 ? rsicross? color.yellow : color.green : color.white
-
+ 
 // volume
 norm(data) =>
     a = (data-sma(data, 3))
@@ -95,7 +95,7 @@ moef (data) =>
 [d, dm, d_color] = lb_vol(vv,cc)
 [cd, cdm, cd_color] = lb_vol(volume,close)
 [theMoef, moefColor] = moef(cd)
-
+[pK, pD, pJ, kshift] = kdj()
 // homodyne 
 
 // --- Start the Homodyne Discriminator Caculations
@@ -168,43 +168,34 @@ HomodyneDiscriminator(data) =>
 
     RVI=denom!=0?num/denom:0
     RVIsig=(RVI+ 2*RVI[1] + 2*RVI[2] + RVI[3])/6
-    [RVI, RVIsig]
+    RVIhist = (RVI - RVIsig) * 2
+    RVIhist_color = RVIhist > 0 ? (RVIhist > RVIhist[1] ? color.lime : color.green) : (RVIhist < RVIhist[1] ? #EF3232 : color.red )
 
-[RVI, RVIsig] = HomodyneDiscriminator(close)
-//p1 = plot(RVI,color=color.lime,style=plot.style_line,linewidth=1)
-//p2 = plot(RVIsig,color=color.red,style=plot.style_line,linewidth=1)
+    [RVI, RVIsig, RVIhist, RVIhist_color]
 
-hist = (RVI - RVIsig) * 2
-hist_color = hist > 0 ? (hist > hist[1] ? color.lime : color.green) : (hist < hist[1] ? #EF3232 : color.red )
-
+[RVI, RVIsig, RVIhist, RVIhist_color] = HomodyneDiscriminator(close)
 
 // Plotting
 
-hline(0, "Center", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
+band0 = hline(0, "Center", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
+band1 = hline(100, "rsi", color=color.new(color.gray, 50), linestyle=hline.style_dashed) // rsi
+band2 = hline(-100, "kdj", color=color.new(color.gray, 50), linestyle=hline.style_dashed) // kdj
+band3 = hline(-200, "homodyne", color=color.new(color.gray, 50), linestyle=hline.style_dashed) // homdyne
+band4 = hline(-300, "stoch", color=color.new(color.gray, 50), linestyle=hline.style_dashed) // stoch
 
-band0 = hline(100, "Top", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
-band1 = hline(-100, "Bottom", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
-band3 = hline(-200, "Bottom", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
-band4 = hline(-300, "Bottom", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
-
-fill(band0, band4, color=color.rgb(126, 87, 194, 90), title="Background")
-// lower threshholds
-rsiOversoldThreshhold = hline(30, "rsi", color=color.new(color.green, 50), linestyle=hline.style_dashed)
-kdjOversoldThreshhold = hline(-80, "kdj", color=color.new(color.green, 50), linestyle=hline.style_dashed)
-volOversoldThreshhold = hline(-190, "vol", color=color.new(color.green, 50), linestyle=hline.style_dashed)
-stochOversoldThreshhold = hline(-275, "stoch", color=color.new(color.green, 50), linestyle=hline.style_dashed)
-
-//upper threshholds
-rsiOverboughtThreshhold = hline(70, "rsi", color=color.new(color.red, 50), linestyle=hline.style_dashed)
-kdjOerboughtThreshhold = hline(-30, "kdj", color=color.new(color.red, 50), linestyle=hline.style_dashed)
-volOverboughtThreshhold = hline(-110, "vol", color=color.new(color.red, 50), linestyle=hline.style_dashed)
-stochOverboughtThreshhold = hline(-215, "stoch", color=color.new(color.red, 50), linestyle=hline.style_dashed)
-
+//RSI
 plot(rsi, color= rsi_color, transp=0, linewidth=2, style=plot.style_circles, title="RSI")
+//KDJ
 plot(avg(pK, pD)-kshift, color=color.orange, transp=0, linewidth=1, title="KD")
 plot(pJ-kshift, color=color.fuchsia, transp=0, linewidth=1, title="J")
-plot(norm(d)*50-150, color = d_color)
+//stoch
 plot(kk-300, title="%K", color=#2962FF)
 plot(dd-300, title="%D", color=#FF6D00)
+//lazybear vol + exponential filter
+plot(norm(d)*50-150, color = d_color)
 plot((theMoef)*50-150, title="MOEF", linewidth=1, color=color.fuchsia, transp=0)
-plot(hist*50, color=hist_color, title="Hist", style=plot.style_columns, transp=75)
+//homodyne trendline
+plot(RVIhist*200, color=RVIhist_color, title="Hist", style=plot.style_columns, transp=30)
+
+fill(band2, band3, color =   change(pJ) > 0? color.green :color.red, transp= 70)
+fill(band1, band4, color=color.rgb(126, 87, 194, 90), title="Background")

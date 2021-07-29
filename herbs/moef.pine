@@ -1,0 +1,20 @@
+
+moef (data) =>
+	src = ZScoreNorm(data)/2
+	src1 = nz(src[1], src)
+	src2 = nz(src[2], src1)
+	src3 = nz(src[3], src2)
+
+	moef = src
+	moef := 0.13785 * (2 * src - src1) +
+	         0.0007 * (2 * src1 - src2) +
+	         0.13785 * (2 * src2 - src3) +
+	         1.2103 * nz(moef[1], moef) -
+	         0.4867 * nz(moef[2], moef)
+	moef
+	moefColor = #6d1e7f
+	[moef, moefColor]
+         
+
+[moef, moefColor] = moef(data)
+plot((moef), title="MOEF", linewidth=1, color=moefColor, transp=0)

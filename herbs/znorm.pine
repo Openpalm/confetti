@@ -1,0 +1,4 @@
+norm(data) =>
+    a = (data-sma(data, 3))
+    b = stdev(data,3)
+    ema(a/b, 12)
