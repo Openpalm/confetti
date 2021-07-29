@@ -167,7 +167,7 @@ if array.size(ziggyzags) >= 6
     
         if (showLables)
             zzlabel1 := label.new(x = point, y = val, text = plabel, color = labelcol, textcolor = txtcol, style = dir1 == 1 ? label.style_label_down : label.style_label_up) 
-            
+            label.set_size(zzlabel1, size.small)
     pROCLevel = roc(close, fastPeriod)
     rocLevels = 0.0
     for n = 0 to fastPeriod-1
@@ -188,27 +188,9 @@ if array.size(ziggyzags) >= 6
         label.set_xy(zzlabelcur,bar_index+1, close)
         label.set_color(zzlabelcur,close > open ? color.green : color.red)
         label.set_text(zzlabelcur,plabel)
+        label.set_size(zzlabelcur, size.small)
    
 
-
-
-sMA(src, length) =>
-// Get standard OHLC candle values
-	tClose = close
-
-	// Inputs
-
-	// SuperSmoother filter
-	// © 2013  John F. Ehlers
-	pi = 2 * asin(1)
-	a = exp(-1.414 * pi / length)
-	b = 2 * a * cos(1.414 * pi / length)
-	c2 = b
-	c3 = -a * a
-	c1 = 1 - c2 - c3
-
-	ssf = 0.0
-	ssf := (c1 * ((src + nz(src[1])) / 2)) + (c2 * nz(ssf[1])) + (c3 * nz(ssf[2]))
 
 plot(basis, "Basis", color=uptrend ? c_up : c_dn)
 plot(f_LazyLine(close,50), style=plot.style_line, color = color.orange,  linewidth=1 )
