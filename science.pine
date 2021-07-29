@@ -199,7 +199,7 @@ band0 = hline(0, "Center", color=color.new(color.gray, 50), linestyle=hline.styl
 band1 = hline(100, "rsi", color=color.new(color.gray, 50), linestyle=hline.style_dashed) // rsi
 band2 = hline(-100, "kdj", color=color.new(color.gray, 50), linestyle=hline.style_dashed) // kdj
 band3 = hline(-200, "homodyne", color=color.new(color.gray, 50), linestyle=hline.style_dashed) // homdyne
-band4 = hline(-300, "stoch", color=color.new(color.gray, 50), linestyle=hline.style_dashed) // stoch
+//band4 = hline(-300, "stoch", color=color.new(color.gray, 50), linestyle=hline.style_dashed) // stoch
 
 //RSI
 plot(rsi, color= rsi_color, transp=0, linewidth=2, style=plot.style_circles, title="RSI")
@@ -212,12 +212,12 @@ else
 plot(avg(pK, pD)/1.5-kshift, color=color.orange, transp=0, linewidth=1, title="KD")
 plot(pJ/1.5-kshift, color=pJColor, transp=0, linewidth=1, title="J")
 //stoch
-plot(kk-300, title="%K", color=#2962FF)
-plot(dd-300, title="%D", color=#FF6D00)
+plot(kk-200, title="%K", color=#2962FF)
+plot(dd-200, title="%D", color=#FF6D00)
 //lazybear vol + exponential filter
-plot(norm(d)*40-160, color = d_color)
-plot((theMoef)*40-160, title="MOEF", linewidth=1, color=color.fuchsia, transp=0)
+//plot(norm(d)*40-160, color = d_color)
+//plot((theMoef)*40-160, title="MOEF", linewidth=1, color=color.fuchsia, transp=0)
 //homodyne trendline
-plot(RVIhist*50, color=RVIhist_color, title="Hist", style=plot.style_columns, transp=0)
+//plot(RVIhist*50, color=RVIhist_color, title="Hist", style=plot.style_columns, transp=0)
 //fill(band2, band3, color =   change(pJ) > 0? color.green :color.red, transp= 70)
-fill(band1, band4, color=color.rgb(126, 87, 194, 90), title="Background")
+fill(band1, band3, color=color.rgb(126, 87, 194, 90), title="Background")
