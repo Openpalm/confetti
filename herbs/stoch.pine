@@ -1,11 +1,10 @@
-//stoch
-stoch() => 
+stochf(cloz, hi, lo) => 
 	speriodK = input(14, title="%K Length", minval=1)
 	ssmoothK = input(1, title="%K Smoothing", minval=1)
 	speriodD = input(3, title="%D Smoothing", minval=1)
-	kk = sma(stoch(close, high, low, speriodK), ssmoothK)
+	kk = sma(stoch(cloz, hi, lo, speriodK), ssmoothK)
 	dd = sma(kk, speriodD)
 	[kk, dd]
-[kk, dd] = stoch()
+[kk, dd] = stochf(cc, hh, ll)
 plot(kk-300, title="%K", color=#2962FF)
 plot(dd-300, title="%D", color=#FF6D00)

@@ -32,5 +32,7 @@ lb_vol(vol,cloz) =>
     d_color=d>=0? (d>d[1]?color.green:color.orange) : (d<d[1]?color.red:color.orange)
     [d, dm, d_color]
 //lazybear vol + exponential filter
+[d, dm, d_color] = lb_vol(volume, close)
+[theMoef, moefColor] = moef(d)
 plot(norm(d)*50-150, color = d_color)
 plot((theMoef)*50-150, title="MOEF", linewidth=1, color=color.fuchsia, transp=0
