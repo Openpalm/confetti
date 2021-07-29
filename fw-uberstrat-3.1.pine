@@ -2,34 +2,31 @@
 // © Fibonacci Wolves 2021
 //
 // Author   : SKnight79
-// Version  : 3.1
-// Release  : 7-26-2021
+// Version  : 3.3
+// Release  : 7-29-2021
 //
 //@version=4
-strategy(title = "Fibonacci Wolves Trading Strategy 3.1"
-         ,shorttitle = "FW Trading Strategy 3.1"
+strategy(title = "Fibonacci Wolves Trading Strategy 3.3"
+         ,shorttitle = "FW Trading Strategy 3.3"
          ,overlay = true
-         ,max_bars_back=300
+         ,max_bars_back=501
          ,pyramiding = 10
          ,default_qty_type = strategy.cash
          ,default_qty_value = 100
          ,initial_capital = 1000
          ,calc_on_every_tick = true
-//         ,process_orders_on_close = true
+         ,process_orders_on_close = true
          )
 
 //Input: Global
-version="3.1"
-release="7-26-2021"
+version="3.3"
+release="7-29-2021"
+bgColour=color.new(na,100)
+barColour=close > open ? color.lime : color.red
 
-//Input: Alert Message Header/Footer
-alertMessageHeader = "{\"content\":\"```"
-alertMessageHeader += "\\n🔐 Symbol: " + syminfo.tickerid
-alertMessageHeader += "\\n🕐 Chart: " + timeframe.period
-alertMessageHeader += "\\n\\n" 
-alertMessageFooter = "\\n\\n🐺 © 2021 FW Strategy v" + version + " (" + release + ")"
-alertMessageFooter += "```📊 https://www.tradingview.com/symbols/" + syminfo.ticker + "/"
-alertMessageFooter += "\"}"
+//Input: Messages
+messageLabelHigh = "📈 High 📉"
+messageLabelLow = "📉 Low 📈"
 
 //Input: Bar State
 var bool isBarStateFirst = barstate.isfirst
@@ -59,9 +56,12 @@ isTradeZoneShort = true
 
 var int trading_id = 0
 
-//Input: Message Price Labels
-messagePriceHighAlert = "📉 Sell"
-messagePriceLowAlert = "📈 Buy"
+//Input: Trading Market
+tradeDuration = 60
+tradeMarketChartURL = input(title="Chart Link", type=input.string, defval="", group="Trading Market", inline="TM")
+
+isTradeMarketSpot = syminfo.type == "stock" or syminfo.type == "futures" or syminfo.type == "index" or syminfo.type == "crypto" or syminfo.type == "fund"
+isTradeMarketBinary = syminfo.type == "forex"
 
 //Input: Trade Actions
 openLong = false
@@ -74,7 +74,7 @@ closeLong = false
 closeLongPump = false
 
 closeShort = false
-closeShortPump = false
+closeShortDump = false
 
 //Input: Display Options
 displayMA=input(title="Moving Averages", group="Display", type=input.bool, defval=true, inline="DS1")
@@ -86,14 +86,18 @@ displayZigZagLabels=input(title="labels", group="Display", type=input.bool, defv
 displayZigZagLabelCurrent=input(title="status", group="Display", type=input.bool, defval=true, inline="DS2")
 displayBreakOutDown=input(title="Break Outs/Break Downs", group="Display", type=input.bool, defval=true, inline="DS3")
 displayBarBackground=input(title="Bar background", group="Display", type=input.bool, defval=true, inline="DS3")
+displaySREnabled=input(title="Support/Resistance", group="Display", type=input.bool, defval=true, inline="DS3")
 
 //Input: Alerts Options
 pivotHighAlert = false
 pivotLowAlert = false
 trendLongAlert = false
 trendShortAlert = false
+srChannelAlert = false
+
 pivotAlertEnabled=input(title="Pivots", group="Alerts", type=input.bool, defval=true, inline="AS1")
 trendAlertEnabled=input(title="Trends", group="Alerts", type=input.bool, defval=true, inline="AS1")
+srChannelAlertEnabled=input(title="SR Channels", group="Alerts", type=input.bool, defval=true, inline="AS1")
 
 //Input: Strategy Options
 tradeOpenLongEnabled = input(title="Long", group="Direction", type=input.bool, defval=true, inline="TD")
@@ -106,18 +110,21 @@ tradeOpenShortDumpEnabled = input(title="Dumps", group="Direction", type=input.b
 tradeCloseShortEnabled = input(title="Close Short", group="Direction", type=input.bool, defval=false, inline="TD")
 tradeCloseShortDumpEnabled = input(title="Close Short Dump", group="Direction", type=input.bool, defval=false, inline="TD")
 
-tradeCloseLongMethod = input(title="Close Long Method", defval="Market Close", options=["Market Close", "Stop Limit"], inline="CM") 
-tradeCloseShortMethod = input(title="Close Short Method", defval="Market Close", options=["Market Close", "Stop Limit"], inline="CM") 
+tradeCloseLongMethod = input(title="Close Long Method", defval="Market Close", options=["Market Close", "Stop Limit"], inline="TC") 
+tradeCloseShortMethod = input(title="Short Method", defval="Market Close", options=["Market Close", "Stop Limit"], inline="TC") 
 
 tradeTrendCrossEnabled = input(title="Major Trend Cross", group="Strategy", type=input.bool, defval=true, inline="TI")
 tradeTrendPivotEnabled = input(title="Minor Trend Pivot", group="Strategy", type=input.bool, defval=true, inline="TI")
 tradeRSIEnabled = input(title="RSI Low/High", group="Strategy", type=input.bool, defval=true, inline="TI")
-tradeStochEnabled = input(title="Stochastic Low/High", group="Strategy", type=input.bool, defval=true, tooltip = "Enable trade indicators.", inline="TI")
+tradeStochEnabled = input(title="Stochastic Low/High", group="Strategy", type=input.bool, defval=true, inline="TI")
+tradeMACDTrendEnabled = input(title="MACD Trend Pivot", group="Strategy", type=input.bool, defval=true, inline="TI")
 
-tradeVolumeHighEnabled = input(title="High Volume", group="Strategy", type=input.bool, defval=true, inline="TI")
 tradePriceSpikeEnabled = input(title="Price Spike", group="Strategy", type=input.bool, defval=true, inline="TI")
-tradeTrendBreakOutDownEnabled = input(title="Trend Break Out/Down", group="Strategy", type=input.bool, defval=true, inline="TI")
 tradeBodyBreakOutDownEnabled = input(title="Body Break Out/Down", group="Strategy", type=input.bool, defval=true, inline="TI")
+tradeVolumeHighEnabled = input(title="High Volume", group="Strategy", type=input.bool, defval=true, inline="TI")
+tradeTrendBreakOutDownEnabled = input(title="Trend Break Out/Down", group="Strategy", type=input.bool, defval=true, inline="TI")
+
+tradeSRChannelEnabled = input(title="Support/Resistance Channel Break Out/Down", group="Strategy", type=input.bool, defval=true, tooltip = "Enable trade indicators.", inline="TI")
 
 isTradeZonesEnable = input(title="Trade Zones", group="Filters", type=input.bool, defval=true, inline="FLT")
 isLowVolumeEnable = input(title="Low Volume", group="Filters", type=input.bool, defval=false, inline="FLT")
@@ -252,16 +259,27 @@ tradeShortDumpStopLossMessage = input(defval=tradeShortDumpStopLossMessageDef, t
 tradeShortDumpCloseOrderMessage = input(defval=tradeShortDumpCloseOrderMessageDef, type=input.string, title="Short Dump Close Order Message", group = "Short Dump Bot Trading", tooltip = "The message for the short dump trade bot to close the deal.")
 
 //Input: Moving Averages
+veryFastPeriodLen = 7
 fastPeriodLen = 10
 slowPeriodLen = 32
 
-fastPeriod = input(title="Fast Period", group="Moving Average", type=input.integer, defval=fastPeriodLen, minval=2, maxval=100, inline="MA")
-slowPeriod = input(title="Slow Period", group="Moving Average", type=input.integer, defval=slowPeriodLen, minval=2, maxval=100, tooltip = "Number of periods to calculte the fast and slow EMA.", inline="MA")
+veryFastPeriod = input(title="Very Fast Period", group="Moving Average", type=input.integer, defval=veryFastPeriodLen, minval=2, maxval=9, inline="MA")
+fastPeriod = input(title="Fast Period", group="Moving Average", type=input.integer, defval=fastPeriodLen, minval=10, maxval=31, inline="MA")
+slowPeriod = input(title="Slow Period", group="Moving Average", type=input.integer, defval=slowPeriodLen, minval=32, maxval=49, tooltip = "Number of periods to calculte the fast and slow EMA.", inline="MA")
+
+//Logic: Moving Averages
+ema7 = ema(close, 7)
+ema10 = ema(close, 10)
+ema32 = ema(close, 32)
+ema50 = ema(close, 50)
+ema100 = ema(close, 100)
+ema200 = ema(close, 200)
 
 //Logic: Moving Average
-fastMA = ema(close, fastPeriod)
-slowMA = ema(close, slowPeriod)
-devMA = abs(ema(close, fastPeriod) - ema(close, slowPeriod))
+veryFastMA = ema7
+fastMA = ema10
+slowMA = ema32
+devMA = abs(ema10 - ema32)
 isDevMALow = devMA < 5
 
 //Input: STOCH
@@ -298,7 +316,7 @@ rsiHigh = input(title="RSI High", group="RSI", type=input.float, defval=67, minv
 //Logic: RSI
 rsiLevel = rsi(close, fastPeriod)
 rsiLevelLast = rsi(close[1], fastPeriod)
-isRSIStrong = (rsiLevel <= rsiLow or rsiLevel >=rsiHigh) ? true : false
+isRSIStrong = (rsiLevel <= rsiLow or rsiLevel >=rsiHigh)
 isRSIHigh = rsiLevel >= rsiHigh
 isRSIHighLast = rsiLevelLast >= rsiHigh
 isRSILow = rsiLevel <= rsiLow
@@ -314,8 +332,8 @@ isRSILowCrossUp = crossover(rsiLevel,rsiLow)
 MFIupper = sum(volume * (change(hlc3) <= 0 ? 0 : hlc3), fastPeriod)
 MFIlower = sum(volume * (change(hlc3) >= 0 ? 0 : hlc3), fastPeriod)
 MFILevel = 100.0 - (100.0 / (1.0 + MFIupper / MFIlower))
-isMFIHigh = MFILevel >= 80
-isMFILow = MFILevel <= 20
+isMFIHigh = isTradeMarketSpot ? MFILevel >= 80 : false
+isMFILow = isTradeMarketSpot ? MFILevel <= 20 : false
 
 //Input: SuperTrend
 mode =input(title = "HTF Method", defval = 'Auto', group="Supertrend", options=['Auto', 'User Defined'])
@@ -336,14 +354,32 @@ var dir1 = 0
 var max_array_size = 20
 var ziggyzags = array.new_float(0)
 
-messageLabelHigh = messagePriceHighAlert
-messageLabelLow = messagePriceLowAlert
 pivotAlertMessage = ""
+
+//Logic: MACD Cross Trend Pivot
+macDFastMA = ema(close, fastPeriod)
+macDSlowMA = ema(close, slowPeriod)
+macD = macDFastMA - macDSlowMA
+macDSignal = ema(macD, 5)
+macDHistogram = macD - macDSignal
+// macDHigh = 80
+// macDLow = 20
+// isMACDHigh = macD > macDHigh
+// isMACDLow = macD < macDLow
+// isMACDStrong = isMACDHigh or isMACDLow
+isMACDCrossDown = crossunder(macD,macDSignal)
+isMACDCrossUp = crossover(macD,macDSignal)
+// isMACDCross = cross(macD,macDSignal)
+// isMACDStrongCross = isMACDStrong and isMACDCross
+isMACDTrendUp = close > ema100
+isMACDTrendDown = close < ema100
+isMACDCrossPivotTrendUp = isMACDCrossUp and isMACDTrendUp
+isMACDCrossPivotTrendDown = isMACDCrossDown and isMACDTrendDown
 
 //Logic: Volume Strength Indicator
 volMultiplier = input(defval = 1.75, minval = 1.25 , maxval = 10, title = "Volume Percentage", group="Volume Strength Indicator")
 
-avrg=sma(volume,fastPeriod)
+avrg=ema(volume,fastPeriod)
 
 vold1 = volume > avrg*volMultiplier and close<open
 vold2 = volume >= avrg*0.5 and volume<=avrg*volMultiplier and close<open
@@ -366,8 +402,43 @@ volumeStrengthBarColor = vold1 ? cold1 : vold2 ? cold2 : vold3 ? cold3 : volu1 ?
 isVolumeUpHigh = volu1
 isVolumeDownHigh = vold1
 
-//Bar: Volume Strength Indicator
-barcolor(volumeStrengthBarColor)
+if isTradeMarketSpot
+    barColour := volumeStrengthBarColor
+
+//Logic: Trend Strength Indicator
+
+trendColorGrowAbove = #26A69A
+trendColorFallAbove = #B2DFDB
+trendColorGrowBelow = #FFCDD2
+trendColorFallBelow = #FF5252
+
+isTrendStrengthPositive = macDHistogram >= 0
+isTrendStrengthNegative = macDHistogram < 0
+isTrendStrengthUp = macDHistogram[1] < macDHistogram
+isTrendStrengthDown = macDHistogram > macDHistogram[1]
+
+trendStrengthBarColor = isTrendStrengthPositive ? isTrendStrengthUp ? trendColorGrowAbove : trendColorFallAbove : isTrendStrengthUp ? trendColorGrowBelow : trendColorFallBelow
+
+if (isTradeMarketBinary)
+    barColour := trendStrengthBarColor
+    
+//Logic: Trade Zones
+isTradeZone = true
+isTradeZoneLevel := (stochK <= stochLow or stochK >=stochHigh) ? 1 : 0
+isTradeZoneLevel += isRSIStrong == true ? 1 : 0
+tradeZonebgcolor = color.red
+
+if isTradeZoneLevel == 1 
+    tradeZonebgcolor := color.blue
+if isTradeZoneLevel == 2 
+    tradeZonebgcolor := color.green
+
+//Background : Trade Zones
+tradeZonebgcolor := displayBarBackground ? tradeZonebgcolor : na
+if tradeZonebgcolor != na
+    bgColour := tradeZonebgcolor
+
+bgcolor(color.new(tradeZonebgcolor,75))
 
 //Input: Price Spike Detector
 procPercentChange = input(defval=1, minval = 0.15, maxval=50, title="Minimum % of Change", group = "Price Spike")
@@ -379,8 +450,9 @@ isPriceSpikeUp = procChange > 0 and abs(procChange) > procLimit
 isPriceSpikeDown = procChange < 0 and abs(procChange) > procLimit
 
 //Background: Price Spike Detector
-priceSpikeBarColor = displayBarBackground ? isPriceSpikeUp ? color.lime : isPriceSpikeDown ? color.red : na : na
-bgcolor(priceSpikeBarColor, 50)
+priceSpikeBarColor = displayBarBackground ? isPriceSpikeUp ? color.lime : isPriceSpikeDown ? color.red : color.black : color.black
+if priceSpikeBarColor != na 
+    bgColour := priceSpikeBarColor
 
 //Plot: Price Spike Detector
 plotshape(displayBreakOutDown ? isPriceSpikeUp : na, title="Price Spike Up", location=location.belowbar, style=shape.triangleup, size=size.tiny, color=color.new(color.lime,20))
@@ -497,7 +569,8 @@ isTrendBreakDown = not na(bomin) and num1 >= mintest
 
 //Background: Trend Breakout/Breakdown
 trendBarColor = displayBarBackground ? isTrendBreakOut ? color.lime : isTrendBreakDown ? color.red : na : na
-bgcolor(trendBarColor, 50)
+if trendBarColor != na
+    bgColour := trendBarColor
 
 //Plot: Trend Breakout/Breakdown
 plotshape(displayBreakOutDown ? isTrendBreakOut : na, title="Trend Breakout", location=location.belowbar, style=shape.triangleup, size=size.tiny, color=color.new(color.lime,20))
@@ -505,18 +578,19 @@ plotshape(displayBreakOutDown ? isTrendBreakDown : na, title="Trend Breakdown", 
 
 //Logic: Body Breakout/Breakdown
 body = abs(close - open)
-smabody = sma(body, 100)
+emabody = ema(body, 100)
 
-isBodyBreakOut = body > smabody * mult and close > open
-isBodyBreakDown = body > smabody * mult and close < open
+isBodyBreakOut = body > emabody * mult and close > open
+isBodyBreakDown = body > emabody * mult and close < open
 
 //Background: Body Breakout/Breakdown
 bodyBarColor = displayBarBackground ? isBodyBreakOut ? color.lime : isBodyBreakDown ? color.red : na : na
-bgcolor(bodyBarColor, 50)
+if bodyBarColor != na 
+    bgColour := bodyBarColor
 
 //Plot: Body Breakout/Breakdown
-plotshape(displayBreakOutDown ? isBodyBreakOut : na, title="Trend Breakout", location=location.belowbar, style=shape.triangleup, size=size.tiny, color=color.new(color.green,20))
-plotshape(displayBreakOutDown ? isBodyBreakDown : na, title="Trend Breakdown", location=location.abovebar, style=shape.triangledown, size=size.tiny, color=color.new(color.orange,20))
+plotshape(displayBreakOutDown ? isBodyBreakOut : na, title="Body Breakout", location=location.belowbar, style=shape.diamond, size=size.tiny, color=color.new(color.green,20))
+plotshape(displayBreakOutDown ? isBodyBreakDown : na, title="Body Breakdown", location=location.abovebar, style=shape.diamond, size=size.tiny, color=color.new(color.orange,20))
 
 //Function: Backtest Period
 window() =>
@@ -528,9 +602,9 @@ window() =>
 //Function: Generate Bot Trade Message
 tradeGenerateMessage(tradeBotID,tradeBotTokenID,tradeBotDelay,tradeBotPair,tradeCommand) =>
 	generateMessage = "{\"message_type\": \"bot\",\"bot_id\":" + tradeBotID + ",\"email_token\":\"" + tradeBotTokenID + "\",\"delay_seconds\":" + tostring(tradeBotDelay)
-	generateMessage += tradeBotPair != "" ? ",\"pair\":\"" + tradeBotPair + "\"}" : ""
-    generateMessage += tradeCommand != "" ? ",\"action\":\"" + tradeCommand + "\"}" : ""
-	generateMessage += "\"}"
+	generateMessage += tradeBotPair != "" ? ",\"pair\":\"" + tradeBotPair + "\"" : ""
+    generateMessage += tradeCommand != "" ? ",\"action\":\"" + tradeCommand + "\"" : ""
+	generateMessage += "\}"
 
 //Logic: Bar Time Remaining
 timeRemaining = ""
@@ -611,83 +685,9 @@ plot(displaySuperTrend ? Trailingsl : na, color = linecolor ,  linewidth = 2, ti
 plot(displaySuperTrend ? TrendHtf == 1 and TrendHtf[1] == -1 ? TrailingslHtf : na : na, title="Major Trend Up", linewidth = 6, color=color.green, style = plot.style_circles)
 plot(displaySuperTrend ? TrendHtf == -1 and TrendHtf[1] == 1 ? TrailingslHtf : na: na, title="Major Trend Down", linewidth = 6, color=color.red, style = plot.style_circles)
 
-//Logic: Trade Zones
-isTradeZone = true
-isTradeZoneLevel := (stochK <= stochLow or stochK >=stochHigh) ? 1 : 0
-isTradeZoneLevel += isRSIStrong == true ? 1 : 0
-tradeZoneBgColor = color.new(color.red, 85)
-
-if isTradeZoneLevel == 1 
-    tradeZoneBgColor := color.new(color.blue, 85)
-if isTradeZoneLevel == 2 
-    tradeZoneBgColor := color.new(color.green, 85)
-
-//Background : Trade Zones
-tradeZoneBgColor := displayBarBackground ? tradeZoneBgColor : na
-bgcolor(color=tradeZoneBgColor)
-
-//Input: Moving Average Forecast
-ma1Enabled = input(title="MA 1", type=input.bool, defval=true, group="Moving Average", inline="MA1")
-ma1Type = input("EMA", title="", options = ["DEMA", "EMA", "HMA", "LSMA", "MA", "RMA", "SMA", "SWMA", "TEMA", "TMA", "VWMA", "WMA"], group="Moving Average", inline="MA1")
-ma1Length = input(title="", type=input.integer, defval=fastPeriodLen, minval=1, group="Moving Average", inline="MA1")
-ma1Color = input(title="", type=input.color, defval=color.red, group="Moving Average", inline="MA1")
-ma1Resolution = input(title="", type=input.resolution, defval="", group="Moving Average", inline="MA11")
-ma1Source = close
-
-ma2Enabled = input(title="MA 2", type=input.bool, defval=true, group="Moving Average", inline="MA2")
-ma2Type = input("EMA", title="", options = ["DEMA", "EMA", "HMA", "LSMA", "MA", "RMA", "SMA", "SWMA", "TEMA", "TMA", "VWMA", "WMA"], group="Moving Average", inline="MA2")
-ma2Length = input(title="", type=input.integer, defval=slowPeriodLen, minval=1, group="Moving Average", inline="MA2")
-ma2Color = input(title="", type=input.color, defval=color.orange, group="Moving Average", inline="MA2")
-ma2Resolution = input(title="", type=input.resolution, defval="", group="Moving Average", inline="MA22")
-ma2Source = close
-
-ma3Enabled = input(title="MA 3", type=input.bool, defval=true, group="Moving Average", inline="MA3")
-ma3Type = input("EMA", title="", options = ["DEMA", "EMA", "HMA", "LSMA", "MA", "RMA", "SMA", "SWMA", "TEMA", "TMA", "VWMA", "WMA"], group="Moving Average", inline="MA3")
-ma3Length = input(title="", type=input.integer, defval=50, minval=1, group="Moving Average", inline="MA3")
-ma3Color = input(title="", type=input.color, defval=color.yellow, group="Moving Average", inline="MA3")
-ma3Resolution = input(title="", type=input.resolution, defval="", group="Moving Average", inline="MA33")
-ma3Source = close
-
-//Logic: Moving Average
-ma(_type, _src, _len) =>
-    if _type == "DEMA"
-        2 * ema(_src, _len) - ema(ema(_src, _len), _len)
-    else if _type == "EMA"
-        ema(_src, _len)
-    else if _type == "HMA"
-        wma(2 * wma(_src, _len / 2) - wma(_src, _len), round(sqrt(_len)))
-    else if _type == "LSMA"
-        3 * wma(_src, _len) - 2 * sma(_src, _len)
-    else if _type == "MA"
-        sma(_src, _len)
-    else if _type == "RMA"
-        rma(_src, _len)
-    else if _type == "SMA"
-        smma = 0.0
-        smma := na(smma[1]) ? sma(_src, _len) : (smma[1] * (_len - 1) + _src) / _len
-        smma
-    else if _type == "SWMA"
-        swma(_src)
-    else if _type == "TEMA"
-        3 * ema(_src, _len) - 3 * ema(ema(_src, _len), _len) + ema(ema(ema(_src, _len), _len), _len)
-    else if _type == "TMA"
-        swma(wma(_src, _len))
-    else if _type == "VWMA"
-        vwma(_src, _len)
-    else if _type == "WMA"
-        wma(_src, _len)
-
-ma_prediction(_type, _src, _period, _offset) =>
-    (ma(_type, _src, _period - _offset) * (_period - _offset) + _src * _offset) / _period
-
-ma1 = security(syminfo.tickerid, ma1Resolution, ma(ma1Type, ma1Source, ma1Length))
-ma2 = security(syminfo.tickerid, ma2Resolution, ma(ma2Type, ma2Source, ma2Length))
-ma3 = security(syminfo.tickerid, ma3Resolution, ma(ma3Type, ma3Source, ma3Length))
-
-//Plot: Moving Average Forecast
-plot(displayMA ? ma1Enabled ? ma1 : na : na, title="MA 1", color=ma1Color, linewidth=1)
-plot(displayMA ? ma2Enabled ? ma2 : na : na, title="MA 2", color=ma2Color, linewidth=1)
-plot(displayMA ? ma3Enabled ? ma3 : na : na, title="MA 3", color=ma3Color, linewidth=1)
+//Plot: Golden/Death Cross
+plot(displayMA ? crossover(ema50, ema200) ? ema200 : na: na, title='Golden Cross', style=plot.style_cross, color=color.green, linewidth=5)
+plot(displayMA ? crossunder(ema200, ema50) ? ema200 : na: na, title='Death Cross', style=plot.style_cross, color=color.red, linewidth=5)
 
 //Logic: Trend
 bool trendCrossLong = crossover(fastMA,slowMA)
@@ -695,15 +695,15 @@ bool trendCrossShort = crossunder(fastMA,slowMA)
 
 bool trendMajorLong = fastMA > slowMA
 bool trendMajorShort = fastMA < slowMA
-bool trendMinorLong = trendMajorShort == true and fastMA < ma1
-bool trendMinorShort = trendMajorLong == true and fastMA > ma1
-bool trendPivotLong = crossover(ma1,fastMA) and abs(fastMA - ma1) >= 5
-bool trendPivotShort = crossover(fastMA,ma1) and abs(fastMA - ma1) >= 5
+bool trendMinorLong = trendMajorShort and veryFastMA > fastMA
+bool trendMinorShort = trendMajorLong and veryFastMA < fastMA
+bool trendPivotLong = crossover(fastMA,slowMA) and abs(fastMA - slowMA) >= 5
+bool trendPivotShort = crossover(slowMA,fastMA) and abs(fastMA - slowMA) >= 5
 
 trendLongAlert := trendCrossLong
 trendShortAlert := trendCrossShort
 
-trendAlertMessage = trendCrossLong ? " 🟢 Long/Bull Trend" : " 🔴 Short/Bear Trend"
+trendAlertMessage = trendCrossLong ? " 🟢 Up Trend" : " 🔴 Down Trend"
 trendAlertMessage += "\\n 🐺 Action: "
 trendAlertMessage += trendCrossLong ? "Buy Long" : "Sell Short"
 trendAlertMessage += dir1 == 1 ? messageLabelHigh : messageLabelLow
@@ -714,24 +714,62 @@ trendAlertMessage += "\\n 📊 Major Trend: " + trendMajorMessage
 //bool trendMajorLong = startLongDeal or strategy.position_size > 0
 //bool trendMajorShort = startShortDeal or strategy.position_size < 0
 
+//Input: Moving Average Forecast
+ma1Enabled = input(title="MA 1", type=input.bool, defval=true, group="Moving Average", inline="MA1")
+ma1Length = input(title="", type=input.integer, defval=veryFastPeriodLen, minval=2, maxval=9, group="Moving Average", inline="MA1")
+ma1Color = input(title="", type=input.color, defval=color.white, group="Moving Average", inline="MA1")
+ma1Resolution = input(title="", type=input.resolution, defval="", group="Moving Average", inline="MA1")
+
+ma2Enabled = input(title="MA 2", type=input.bool, defval=true, group="Moving Average", inline="MA2")
+ma2Length = input(title="", type=input.integer, defval=fastPeriodLen, minval=10, maxval=31, group="Moving Average", inline="MA2")
+ma2Color = input(title="", type=input.color, defval=color.green, group="Moving Average", inline="MA2")
+ma2Resolution = input(title="", type=input.resolution, defval="", group="Moving Average", inline="MA2")
+
+ma3Enabled = input(title="MA 3", type=input.bool, defval=true, group="Moving Average", inline="MA3")
+ma3Length = input(title="", type=input.integer, defval=slowPeriodLen, minval=32, maxval=49, group="Moving Average", inline="MA3")
+ma3Color = input(title="", type=input.color, defval=color.blue, group="Moving Average", inline="MA3")
+ma3Resolution = input(title="", type=input.resolution, defval="", group="Moving Average", inline="MA3")
+
+ma4Enabled = input(title="MA 4", type=input.bool, defval=true, group="Moving Average", inline="MA4")
+ma4Length = input(title="", type=input.integer, defval=50, minval=50, maxval=99, group="Moving Average", inline="MA4")
+ma4Color = input(title="", type=input.color, defval=color.yellow, group="Moving Average", inline="MA4")
+ma4Resolution = input(title="", type=input.resolution, defval="", group="Moving Average", inline="MA4")
+
+ma5Enabled = input(title="MA 5", type=input.bool, defval=true, group="Moving Average", inline="MA5")
+ma5Length = input(title="", type=input.integer, defval=100, minval=100, maxval=199, group="Moving Average", inline="MA5")
+ma5Color = input(title="", type=input.color, defval=color.orange, group="Moving Average", inline="MA5")
+ma5Resolution = input(title="", type=input.resolution, defval="", group="Moving Average", inline="MA5")
+
+ma6Enabled = input(title="MA 6", type=input.bool, defval=true, group="Moving Average", inline="MA6")
+ma6Length = input(title="", type=input.integer, defval=200, minval=200, maxval=300,  group="Moving Average", inline="MA6")
+ma6Color = input(title="", type=input.color, defval=color.red, group="Moving Average", inline="MA6")
+ma6Resolution = input(title="", type=input.resolution, defval="", group="Moving Average", inline="MA6")
+
+//Logic: Moving Average
+ma1 = security(syminfo.tickerid, ma1Resolution, ema(close,ma1Length))
+ma2 = security(syminfo.tickerid, ma2Resolution, ema(close,ma2Length))
+ma3 = security(syminfo.tickerid, ma3Resolution, ema(close,ma3Length))
+ma4 = security(syminfo.tickerid, ma3Resolution, ema(close,ma4Length))
+ma5 = security(syminfo.tickerid, ma3Resolution, ema(close,ma5Length))
+ma6 = security(syminfo.tickerid, ma3Resolution, ema(close,ma6Length))
+
 //Plot: Moving Average
-plotshape(displayTrendMA ? trendMajorLong ? fastMA : na : na, title = "Up trend", style = shape.arrowup, location = location.absolute, color = color.green, size = size.tiny)
-plotshape(displayTrendMA ? trendMajorShort ? fastMA : na : na, title = "Down trend", style = shape.arrowdown, location = location.absolute, color = color.red, size = size.tiny)
-plotshape(displayTrendMA ? trendMinorLong ? fastMA : na : na, title = "Up trend", style = shape.arrowup, location = location.absolute, color = color.green, size = size.tiny)
-plotshape(displayTrendMA ? trendMinorShort ? fastMA : na : na, title = "Down trend", style = shape.arrowdown, location = location.absolute, color = color.red, size = size.tiny)
+ma2Color := trendMajorLong ? color.green : color.red
+
+//plot(displayMA ? ma1Enabled ? ma1 : na : na, title="MA 1", color=ma1Color, linewidth=2)
+plot(displayMA ? ma2Enabled ? ma2 : na : na, title="MA 2", color=ma2Color, linewidth=2)
+plot(displayMA ? ma3Enabled ? ma3 : na : na, title="MA 3", color=ma3Color, linewidth=2)
+plot(displayMA ? ma4Enabled ? ma4 : na : na, title="MA 4", color=ma4Color, linewidth=3)
+plot(displayMA ? ma5Enabled ? ma5 : na : na, title="MA 5", color=ma5Color, linewidth=3)
+plot(displayMA ? ma6Enabled ? ma6 : na : na, title="MA 6", color=ma6Color, linewidth=3)
+
+plotshape(displayTrendMA ? trendMajorLong ? fastMA : na : na, title = "Major Up Trend", style = shape.arrowup, location = location.absolute, color = color.lime, size = size.small)
+plotshape(displayTrendMA ? trendMajorShort ? fastMA : na : na, title = "Major Down Trend", style = shape.arrowdown, location = location.absolute, color = color.red, size = size.small)
+plotshape(displayTrendMA ? trendMinorLong ? fastMA : na : na, title = "Minor Up Trend", style = shape.diamond, location = location.absolute, color = color.lime, size = size.tiny)
+plotshape(displayTrendMA ? trendMinorShort ? fastMA : na : na, title = "Minor Down Trend", style = shape.diamond, location = location.absolute, color = color.red, size = size.tiny)
 plotshape(displayTrendMA ? slowMA : na , title = "Slow trend", style = shape.diamond, location = location.absolute, color = color.orange, size = size.tiny)
-plotshape(displayTrendMA ? crossover(fastMA, slowMA) ? fastMA : na : na, title = "Up\nTrend", text = "Up\nTrend", style = shape.labelup, location = location.absolute, color = color.green, textcolor = color.black, size = size.tiny)
+plotshape(displayTrendMA ? crossover(fastMA, slowMA) ? fastMA : na : na, title = "Up\nTrend", text = "Up\nTrend", style = shape.labelup, location = location.absolute, color = color.lime, textcolor = color.black, size = size.tiny)
 plotshape(displayTrendMA ? crossunder(fastMA, slowMA) ? fastMA : na : na, title = "Down\nTrend", text = "Down\nTrend", style = shape.labeldown, location = location.absolute, color = color.red, textcolor = color.black, size = size.tiny)
-
-//Logic: Golden/Death Cross
-ema200 = ema(close, 200)
-ema50 = ema(close, 50)
-
-//Plot: Golden/Death Cross
-plot(displayMA ? ema50 : na, title='EMA 50', style=plot.style_line, color=color.green, linewidth=2)
-plot(displayMA ? ema200 : na, title='EMA 200', style=plot.style_line, color=color.red, linewidth=2)
-plot(displayMA ? crossover(ema50, ema200) ? ema200 : na: na, title='Golden Cross', style=plot.style_cross, color=color.green, linewidth=5)
-plot(displayMA ? crossunder(ema50, ema200) ? ema200 : na: na, title='Death Cross', style=plot.style_cross, color=color.red, linewidth=5)
 
 //Logic: RSI
 rsi = rsi(src, fastPeriod)
@@ -816,7 +854,7 @@ if array.size(ziggyzags) >= 6
 
         pivotHighAlert := dir1 == 1
         pivotLowAlert := dir1 == 0
-        
+
         plabel := dir1 == 1 ? messageLabelHigh : messageLabelLow
         plabel += "\n\n Price: "
         plabel += dir1 == 1 ? tostring(high) : tostring(low)
@@ -824,8 +862,8 @@ if array.size(ziggyzags) >= 6
         plabel += dir1 == 1 ? "\n\n🟢📈🐺" : "\n\n🔴📉🐺"
 
         pivotAlertMessage += dir1 == 1 ? " 🚨 High Pivot" : "🚨 Low Pivot"
-        pivotAlertMessage += "\\n 🐺 Action: "
-        pivotAlertMessage += dir1 == 1 ? messageLabelHigh : messageLabelLow
+        //pivotAlertMessage += "\\n 🐺 Action: "
+        //pivotAlertMessage += dir1 == 1 ? messageLabelHigh : messageLabelHighLow
         pivotAlertMessage += "\\n\\n 🏷 Price: "
         pivotAlertMessage += dir1 == 1 ? tostring(high) : tostring(low)
         pivotAlertMessage += "\\n 👀 Change: " + tostring(truncate(percent(val,val1), 3)) + "%"
@@ -851,6 +889,16 @@ if array.size(ziggyzags) >= 6
 
     plabel := "Price: " + tostring(close)
     plabel += "\nPivot: " + tostring(truncate(pivotLevel, 3)) + "%"
+    
+    if strategy.position_size != 0
+        plabel += "\n"
+        plabel += "\nPosition: " + tostring(strategy.position_avg_price, "#.##")
+        
+        positionPNL = strategy.position_avg_price > close ?  close - strategy.position_avg_price : close - strategy.position_avg_price
+        positionPNLPerc = strategy.position_avg_price > close ?  close/strategy.position_avg_price : strategy.position_avg_price/close 
+            
+        plabel += "\nP/L: " + tostring(positionPNL, "#.##") + " " + tostring(positionPNLPerc, "#.##") + "%"
+            
     plabel += "\n"
     plabel += "\nPivot RoC: " + tostring(pROCLevel, "#.###") + "%"
     plabel += "\nMA RoC: " + tostring(maROCLevel, "#.###") + "%"
@@ -901,42 +949,325 @@ adx(dilen, adxlen) =>
 adxLevel = adx(dilen, adxlen)
 isADXHigh = adxLevel >= adxLimit
 isADXLow = adxLevel < adxLimit
-adxUp = crossover(ema(close,slowPeriod),ema(close,200))
-adxDown = crossunder(ema(close,slowPeriod),ema(close,200))
+adxUp = crossover(slowMA,ema200)
+adxDown = crossunder(ema200,slowMA)
 
 //Logic: Bollinger Bands
-BOLL_length = 20 
-BOLL_src = close
-SMA20 = sma(BOLL_src, BOLL_length) 
-BOLL_sDEV_x2 = 2 * stdev(BOLL_src, BOLL_length)
-BOLL_upper = SMA20 + BOLL_sDEV_x2
-BOLL_lower = SMA20 - BOLL_sDEV_x2
+bbDev = 2 * stdev(close, slowPeriod)
+bbUpper = slowMA + bbDev
+bbLower = slowMA - bbDev
+
+//Plot: Bollinger Bands
+bbUpperBand = plot(isTradeMarketBinary ? bbUpper : na, "Bollinger Upper Band", color=#2962FF)
+bbLowerBand = plot(isTradeMarketBinary ? bbLower: na, "Bollinger Lower Band", color=#2962FF)
+fill(bbUpperBand, bbLowerBand, title = "Background", color=color.rgb(33, 150, 243, 95))
 
 //Logic: ATR v. sDev of prices
-ATR_x2 = atr(input(10,title="Length of ATR [Trailing Stop Loss] (x2)"))*2
-lowVolatility = ATR_x2 > BOLL_sDEV_x2
+bbATR = atr(input(10,title="Length of ATR [Trailing Stop Loss] (x2)"))*2
+lowVolatility = bbATR > bbDev
 
 //Logic: Low Volume
 avg = ema(volume[2],fastPeriod)
 avgm = (avg - avg[fastPeriod])
-isLowVolume = avgm <= 20
+isLowVolume = isTradeMarketSpot ? avgm <= 20 : false
 
 //Plot: Low Volume
 p1 = plot(displayLowVolume ? isLowVolume == true ? close+(close*.005) : close+(close*.010) : na, "Low Volume", style=plot.style_linebr, color = isLowVolume == true ? color.red : color.green)
 p2 = plot(displayLowVolume ? isLowVolume == true ? close-(close*.005) : close-(close*.010) : na, "Low Volume", style=plot.style_linebr, color = isLowVolume == true ? color.red : color.green)
-fill(p1, p2, color = isLowVolume == true ? color.red : color.green, title="Low Volume Background")
+fill(p1, p2, color = isTradeMarketSpot ? isLowVolume ? color.new(color.red,75) : color.new(color.green,75) : na, title="Low Volume Background")
 
 //Logic: Traffic Direction
-ema_check = close > ema(close,fastPeriod)
+ema_check = close > fastMA
 vol_check = volume > (volume[1] * 2)
 close_check = close > open
  
 trafficDirection = "EMA: " + tostring(ema_check) + "\n Volume: " + tostring(vol_check) + "\n Close: " + tostring(close_check)
 
-isLongCondition = ema(close,fastPeriod) > ema(close,slowPeriod)
-isShortCondition = ema(close,fastPeriod) < ema(close,slowPeriod)
+isLongCondition = fastMA > slowMA
+isShortCondition = fastMA < slowMA
 // isLongCondition = ema_check and vol_check and close_check
 // isShortCondition = not ema_check and not vol_check and not close_check
+
+//Function: Support/Resistance
+can_we_start(prd)=>
+    UTC = 0.
+    // get UTC time
+    int timenow_ = timenow + round(UTC * 3600000)
+    int time_ = time + round(UTC * 3600000)
+    
+    // calculate D/H/M/S for the bar which we are on and time now
+    int daynow_ = floor((timenow_ + 86400000 * 3) / 86400000) % 7
+    int day_ = floor((time_ + 86400000 * 3) / 86400000) % 7
+    int hournow_ = floor(timenow_ / 3600000) % 24
+    int hour_ = floor(time_ / 3600000) % 24
+    int minutenow_ = floor(timenow_ / 60000) % 60
+    int minute_ = floor(time_ / 60000) % 60
+    int secondnow_ = floor(timenow_ / 60000) % 60
+    int second_ = floor(time_ / 60000) % 60
+    int hmstime_ = hour_ * 3600000 + minute_ * 60000 + second_ * 1000
+    int hmstimenow_ = hournow_ * 3600000 + minutenow_ * 60000 + secondnow_  * 1000
+    
+    var int starttime = na
+    if bar_index > prd and (na(starttime) or time_ < nz(starttime))
+        if timeframe.isdaily
+            if day_ == daynow_ // session day
+                diff = time_ - time_[prd]
+                starttime := timenow_ - diff
+            if daynow_ > day_ and daynow_ > day_[1] and day_[1] > day_ // weekend
+                diff = time_[1] - time_[prd + 1] + (daynow_ - day_[1]) * 86400000
+                starttime := timenow_ - diff
+        
+        if timeframe.isintraday 
+            if day_ == daynow_ and day_[1] == daynow_ and hmstime_ > hmstimenow_ and hmstime_[1] <= hmstimenow_ // in session
+                diff = time_[1] - time_[prd + 1] + round(UTC * 3600000)
+                starttime := timenow_ - diff
+            if day_ != daynow_ and day_[1] == daynow_ and hmstime_ < hmstimenow_ and hmstime_[1] <= hmstimenow_ // in same day and after session
+                diff = time_[1] - time_[prd + 1] + (hmstimenow_ - hmstime_[1]) + round(UTC * 3600000)
+                starttime := timenow_ - diff
+            if day_ == daynow_ and day_[1] + 1 == daynow_ and hmstime_ > hmstimenow_ and hmstime_[1] >= hmstimenow_  // in week (not first day) and before session
+                diff = time_[1] - time_[prd + 1] + (24 * 3600000 - hmstime_[1]) + hmstimenow_ + round(UTC * 3600000)
+                starttime := timenow_ - diff
+            if day_ == daynow_ and day_[1] > daynow_ and hmstime_ > hmstimenow_ and hmstime_[1] >= hmstimenow_ // the day after weekend before session
+                diff = time_[1] - time_[prd + 1] + 2 * 86400000 + (24 * 3600000 - hmstime_[1]) + hmstimenow_ + round(UTC * 3600000)
+                starttime := timenow_ - diff
+            if daynow_ > day_ and daynow_ > day_[1] and day_[1] > day_ // weekend
+                diff = time_[1] - time_[prd + 1] + (daynow_ - day_[1] - 1) * 86400000 + (24 * 3600000 - hmstime_[1]) + hmstimenow_ + round(UTC * 3600000)
+                starttime := timenow_ - diff
+                
+        if timeframe.isweekly
+            starttime := timenow_ - timeframe.multiplier * prd * 604800000      // 1 week = 604800000ms
+        
+        if timeframe.ismonthly
+            starttime := timenow_ - timeframe.multiplier * prd * 2629743000     // 1 month = 2629743000ms
+            
+    return = not na(starttime) and time >= starttime
+
+//Input: Support/Resistance
+srprd = input(defval = 10, title="Pivot Period", minval = 4, maxval = 30, group = "Support/Resistance", tooltip="Used while calculating Pivot Points, checks left&right bars")
+ppsrc = 'High/Low'
+ChannelW = input(defval = 3, title = "Maximum Channel Width %", minval = 1, maxval = 8, group = "Support/Resistance", tooltip="Calculated using Highest/Lowest levels in 300 bars")
+maxnumsr = input(defval = 7, title = "Number of S/R to show", minval = 1, maxval = 10, group = "Support/Resistance", tooltip="Number of Strongest S/R levels to show")
+loopback = input(defval = 292, title = "Loopback Period", minval = 100, maxval = 400, group = "Support/Resistance", tooltip="While calculating S/R levels it checks Pivots in Loopback Period")
+showlast = input(defval = 292, title = "Show S/R on last # Bars", minval = 20, maxval = 400, group = "Support/Resistance", tooltip="To see S/R levels only on last N bars")
+startdatebar = input(defval = "Bars", title = "Check the Date or Bars to Start", options = ["Bars", "Date"], group = "Support/Resistance")
+startdate = input(defval=timestamp("1 Jan 2020 00:00 +0000"), title="  Start Date", type=input.time, group = "Support/Resistance", tooltip="Calculation starts from this date")
+startbar = input(defval = 400, title="  Starting Bar", minval = 200, maxval = 1000, group = "Support/Resistance", tooltip="Starts calculating on last Nth bar")
+showweaksr = input(defval = true, title = "Show Weak S/R levels")
+res_col = color.new(color.red, 60)
+sup_col = color.new(color.lime, 60)
+inch_col = color.new(color.orange, 60)
+
+//Logic: Support/Resistance
+// get Pivot High/low
+float src1 =  ppsrc == 'High/Low' ? high : max(close, open)
+float src2 =  ppsrc == 'High/Low' ? low : min(close, open)
+float srph = na
+float srpl = na
+float ph_ = pivothigh(src1, srprd, srprd)
+float pl_ = pivotlow(src2, srprd, srprd) 
+if (startdatebar == "Bars" and can_we_start(startbar)) or (startdatebar == "Date" and time >= startdate)
+    srph := ph_
+    srpl := pl_
+
+//calculate maximum S/R channel width
+prdhighest =  highest(300)
+prdlowest = lowest(300)
+cwidth = (prdhighest - prdlowest) * ChannelW / 100
+
+// get/keep Pivot levels
+var pivotvals= array.new_float(0)
+var pivotlocs= array.new_float(0)
+if srph or srpl
+    array.unshift(pivotvals, srph ? srph : srpl)
+    array.unshift(pivotlocs, bar_index)
+    for x = array.size(pivotvals) - 1 to 0
+        if bar_index - array.get(pivotlocs, x) > loopback // check last 300 bars
+            array.pop(pivotvals)
+            array.pop(pivotlocs)
+            continue
+        break
+
+//find/create SR channel of a pivot point
+get_sr_vals(ind)=>
+    float lo = array.get(pivotvals, ind)
+    float hi = lo
+    int numpp = 0
+    for y = 0 to array.size(pivotvals) - 1
+        if y == ind
+            continue
+        float cpp = array.get(pivotvals, y)
+        float wdth = cpp <= hi ? hi - cpp : cpp - lo
+        if wdth <= cwidth // fits the max channel width?
+            if cpp <= hi
+                lo := min(lo, cpp)
+            else
+                hi := max(hi, cpp)
+                
+            numpp := numpp + 20 // each pivot point added as 20
+    [hi, lo, numpp] 
+
+hgest = highest(292)
+lwest = lowest(292)
+
+// keep old SR channels and calculate/sort new channels if we met new pivot point
+var srArray = array.new_float(maxnumsr * 2, 0) // min/max levels
+srArrayOld = array.copy(srArray)
+if srph or srpl
+    supres = array.new_float(0)  // number of pivot, strength, min/max levels
+    // get levels and strengs
+    for x = 0 to array.size(pivotvals) - 1
+        [hi, lo, strength] = get_sr_vals(x)
+        array.push(supres, strength)
+        array.push(supres, hi)
+        array.push(supres, lo)
+    
+    // add each HL to strengh
+    for x = 0 to array.size(pivotvals) - 1
+        h := array.get(supres, x * 3 + 1)
+        l := array.get(supres, x * 3 + 2)
+        s := 0
+        for y = 0 to loopback
+            if (high[y] <= h and high[y] >= l) or
+               (low[y] <= h and low[y] >= l)
+                s := s + 1
+        array.set(supres, x * 3, array.get(supres, x * 3) + s)
+    
+    //reset SR levels
+    array.fill(srArray, 0)
+    // get strongest SRs
+    src = 0
+    for x = 0 to maxnumsr - 1
+        stv = -1. // value
+        stl = -1 // location
+        for y = 0 to array.size(pivotvals) - 1
+            if array.get(supres, y * 3) > stv and 
+              (showweaksr or array.get(supres, y * 3) >= 40 or hgest == array.get(supres, y * 3 + 1) or hgest == array.get(supres, y * 3 + 2) or lwest == array.get(supres, y * 3 + 1) or lwest == array.get(supres, y * 3 + 2))
+                stv := array.get(supres, y * 3)
+                stl := y
+        if stl >= 0
+            //get sr level
+            hh = array.get(supres, stl * 3 + 1)
+            ll = array.get(supres, stl * 3 + 2)
+            array.set(srArray, src * 2, hh)
+            array.set(srArray, src * 2 + 1, ll)
+            
+            // make included pivot points' strength zero 
+            for y = 0 to array.size(pivotvals) - 1
+                if array.get(pivotvals, y) <= hh and array.get(pivotvals, y) >= ll
+                    array.set(supres, y * 3, 0)
+
+            src := src + 1
+
+    // sort them in correct order, plot/fill will be seen better
+    for x = 0 to maxnumsr - 1
+        for y = 0 to maxnumsr - 1
+            if array.get(srArray, y * 2) == array.get(srArrayOld, x * 2) and
+               array.get(srArray, y * 2 + 1) == array.get(srArrayOld, x * 2 + 1)
+                tmp1 = array.get(srArray, x * 2)
+                tmp2 = array.get(srArray, x * 2 + 1)
+                array.set(srArray, x * 2, array.get(srArray, y * 2))
+                array.set(srArray, x * 2 + 1, array.get(srArray, y * 2 + 1))
+                array.set(srArray, y * 2, tmp1)
+                array.set(srArray, y * 2 + 1, tmp2)
+                break
+    
+get_level(ind)=>
+    float ret = na
+    if ind < array.size(srArray)
+        if array.get(srArray, ind) != 0
+            ret := array.get(srArray, ind)
+    ret
+    
+get_color(ind)=>
+    color ret = na
+    if ind < array.size(srArray)
+        if array.get(srArray, ind) != 0
+            ret := array.get(srArray, ind) <= 0 or array.get(srArray, ind) != array.get(srArrayOld, ind)? na :
+                   array.get(srArray, ind) > close and array.get(srArray, ind + 1) > close ? res_col :
+                   array.get(srArray, ind) < close and array.get(srArray, ind + 1) < close ? sup_col :
+                   inch_col
+    ret
+    
+srnum = 0
+plot(get_level(srnum), color = displaySREnabled ? get_color(srnum) : color.new(na,100), show_last = showlast, editable = false, style=plot.style_circles, linewidth=10)
+
+srnum := srnum + 2
+plot(get_level(srnum), color = displaySREnabled ? get_color(srnum) : color.new(na,100), show_last = showlast, editable = false, style=plot.style_circles, linewidth=10)
+
+srnum := srnum + 2
+plot(get_level(srnum), color = displaySREnabled ? get_color(srnum) : color.new(na,100), show_last = showlast, editable = false, style=plot.style_circles, linewidth=10)
+
+srnum := srnum + 2
+plot(get_level(srnum), color = displaySREnabled ? get_color(srnum) : color.new(na,100), show_last = showlast, editable = false, style=plot.style_circles, linewidth=10)
+
+srnum := srnum + 2
+plot(get_level(srnum), color = displaySREnabled ? get_color(srnum) : color.new(na,100), show_last = showlast, editable = false, style=plot.style_circles, linewidth=10)
+
+srnum := srnum + 2
+plot(get_level(srnum), color = displaySREnabled ? get_color(srnum) : color.new(na,100), show_last = showlast, editable = false, style=plot.style_circles, linewidth=10)
+
+srnum := srnum + 2
+plot(get_level(srnum), color = displaySREnabled ? get_color(srnum) : color.new(na,100), show_last = showlast, editable = false, style=plot.style_circles, linewidth=10)
+
+srnum := srnum + 2
+plot(get_level(srnum), color = displaySREnabled ? get_color(srnum) : color.new(na,100), show_last = showlast, editable = false, style=plot.style_circles, linewidth=10)
+
+srnum := srnum + 2
+plot(get_level(srnum), color = displaySREnabled ? get_color(srnum) : color.new(na,100), show_last = showlast, editable = false, style=plot.style_circles, linewidth=10)
+
+srnum := srnum + 2
+plot(get_level(srnum), color = displaySREnabled ? get_color(srnum) : color.new(na,100), show_last = showlast, editable = false, style=plot.style_circles, linewidth=10)
+
+isResistanceBreak = false
+isSupportBreak = false
+isResistanceHeld = false
+isSupportHeld = false
+
+//Channel check
+isSRChannel = false
+srChannelLow = 0.0
+srChannelHigh = 0.0
+srChannelWidthPerc = 0.0
+
+for x = 0 to maxnumsr - 1
+    if close <= array.get(srArray, x * 2) and close >= array.get(srArray, x * 2 + 1) 
+        isSRChannel := true
+
+        if high[1] >= array.get(srArray, x * 2) and close < array.get(srArray, x * 2)
+            isResistanceHeld := true
+
+        if low[1] <= array.get(srArray, x * 2 + 1) and close > array.get(srArray, x * 2 + 1)
+            isSupportHeld := true
+
+        srChannelHigh := array.get(srArray, x * 2)
+        srChannelLow := array.get(srArray, x * 2 + 1) 
+
+// if price is not in a channel then check broken ones
+if not isSRChannel
+    for x = 0 to maxnumsr - 1
+        if close[1] <= array.get(srArray, x * 2) and close > array.get(srArray, x * 2)
+            isResistanceBreak := true
+
+        if close[1] >= array.get(srArray, x * 2 + 1) and close < array.get(srArray, x * 2 + 1)
+            isSupportBreak := true
+
+        srChannelHigh := array.get(srArray, x * 2) 
+        srChannelLow := array.get(srArray, x * 2 + 1)
+
+srChannelWidthPerc := 1 - (srChannelLow/srChannelHigh)
+srChannelAlert := isSRChannel and barssince(not isSRChannel) > 3
+
+srChannelAlertMessage = " Support/Resistance Channel"
+srChannelAlertMessage += "\\n 🐺 Action: "
+srChannelAlertMessage += trendCrossLong ? "Possible Break Out" : "Possible Break Down"
+srChannelAlertMessage += "\\n 🟢 Resistance: " + tostring(srChannelHigh)
+srChannelAlertMessage += "\\n 🏷 Price: " + tostring(close)
+srChannelAlertMessage += "\\n 🥇 Channel Width %: " + tostring(srChannelWidthPerc*100,"#.##") + "%"
+srChannelAlertMessage += "\\n 🛑 Support: " + tostring(srChannelLow)
+
+srChannelAlertMessage += "\\n"
+srChannelAlertMessage += "\\n 📊 Minor Trend: " + trendMinorMessage
+srChannelAlertMessage += "\\n 📊 Major Trend: " + trendMajorMessage
 
 //Function: TimeFrame Indicator
 timeFrameIndicator(timeFramePeriod) =>
@@ -954,11 +1285,24 @@ timeFrameIndicator(timeFramePeriod) =>
       timeFramePeriod == 'W' ? 'w' : ""
 
 //Function: Alerts
+alertMessageHeader = ""
+alertMessageFooter = ""
+
 sendAlert(alertMessageContent) =>
     alertMessage = alertMessageHeader
     alertMessage += alertMessageContent
     alertMessage += alertMessageFooter
     alert(alertMessage)
+
+//Input: Alert Message Header/Footer
+alertMessageHeader := "{\"content\":\"```"
+alertMessageHeader += "\\n🔐 Symbol: " + syminfo.tickerid
+alertMessageHeader += "\\n🕐 Chart: " + timeframe.period + timeFrameIndicator(timeframe.period)
+alertMessageHeader += "\\n\\n" 
+alertMessageFooter := "\\n\\n🐺 © 2021 FW Strategy v" + version + " (" + release + ")"
+alertMessageFooter += "``` 📊 "
+alertMessageFooter += tradeMarketChartURL != "" ? tradeMarketChartURL : "https://www.tradingview.com/symbols/" + syminfo.ticker + "/"
+alertMessageFooter += "\"}"
 
 //Strategy Decision Tree
 
@@ -968,11 +1312,14 @@ varip bool isTradeEntered = false
 varip bool isAlertTradeEntered = false
 varip bool isAlertPivotEntered = false
 varip bool isAlertTrendEntered = false
-
+varip bool isAlertSRChannelEntered = false
+            
 if barstate.isnew
     isTradeEntered := false
     isAlertTradeEntered := false
     isAlertPivotEntered := false
+    isAlertTrendEntered := false
+    isAlertSRChannelEntered := false
 
 //Logic: Strategy
 varip float tradeTakeProfitPrice = na
@@ -985,83 +1332,96 @@ if (window())
     tradeActionEntry = ""
     tradeActionExit = ""
 
+    //Condition: Trend Cross Up
     if (trendCrossLong) and (tradeTrendCrossEnabled) and (tradeOpenLongEnabled)
-        tradeActionEntry := "Long Entry"
-        tradeActionExit := "Long Take Profit"
-        tradeReason := "Long Trend Cross"
+        tradeActionEntry := isTradeMarketSpot ? "Long Entry" : "Down"
+        tradeActionExit := isTradeMarketSpot ? "Long Take Profit" : "Down Take Profit"
+        tradeReason := isTradeMarketSpot ? "Long Trend Cross" : "Up Trend Cross"
         openLong := true
 
-    if (trendCrossShort) and (tradeTrendCrossEnabled) and (tradeOpenShortEnabled)
-        tradeActionEntry := "Short Entry"
-        tradeActionExit := "Short Take Profit"
-        tradeReason := "Short Trend Cross"
+    //Condition: Trend Cross Down
+    if (trendCrossShort) and (tradeTrendCrossEnabled) and (tradeOpenShortEnabled) and (isTradeMarketSpot or isTradeMarketBinary)
+        tradeActionEntry := isTradeMarketSpot ? "Short Entry" : "Down"
+        tradeActionExit := isTradeMarketSpot ? "Short Take Profit" : "Down Take Profit"
+        tradeReason := isTradeMarketSpot ? "Short Trend Cross" : "Down Trend Cross"
         openShort := true
         
-    if (trendMajorShort) and (trendPivotLong) and (tradeTrendPivotEnabled) and (tradeOpenLongEnabled)
-        tradeActionEntry := "Long Entry"
-        tradeActionExit := "Long Take Profit"
-        tradeReason := "Short Trend, Pivot Long"
+    //Condition: Major Trend Short, Minor Trend Long
+    if (trendMajorShort) and (trendPivotLong) and (tradeTrendPivotEnabled) and (tradeOpenLongEnabled) and (isTradeMarketSpot or isTradeMarketBinary)
+        tradeActionEntry := isTradeMarketSpot ? "Long Entry" : "Down"
+        tradeActionExit := isTradeMarketSpot ? "Long Take Profit" : "Down Take Profit"
+        tradeReason := isTradeMarketSpot ? "Short Trend, Pivot Long" : "Down Trend, Pivot Up"
         openLong := true
     
+    //Condition: Major Trend Long, Minor Trend Short
     if (trendMajorLong) and (trendPivotShort) and (tradeTrendPivotEnabled) and (tradeOpenShortEnabled)
-        tradeActionEntry := "Short Entry"
-        tradeActionExit := "Short Take Profit"
-        tradeReason := "Long Trend, Pivot Short"
+        tradeActionEntry := isTradeMarketSpot ? "Short Entry" : "Down"
+        tradeActionExit := isTradeMarketSpot ? "Short Take Profit" : "Down Take Profit"
+        tradeReason := isTradeMarketSpot ? "Long Trend, Pivot Short" : "Up Trend, Pivot Down"
         openShort := true
 
+    //Condition: Price Spike Up
     if (isPriceSpikeUp) and (tradePriceSpikeEnabled) and (tradeOpenLongPumpEnabled)
-        tradeActionEntry := "Long Pump Entry"
-        tradeActionExit := "Long Pump Take Profit"
+        tradeActionEntry := isTradeMarketSpot ? "Long Pump Entry" : "Up Pump"
+        tradeActionExit := isTradeMarketSpot ? "Long Pump Take Profit" : "Up Take Profit"
 //        tradeReason := "Price Spike Up Detected. Change: " + tostring(procChange) + " Limit: " + tostring(procLimit)
         tradeReason := "Price Spike Up"
         openLongPump := true
         
+    //Condition: Price Spike Down
     if (isPriceSpikeDown) and (tradePriceSpikeEnabled) and (tradeOpenShortDumpEnabled)
-        tradeActionEntry := "Short Dump Entry"
-        tradeActionExit := "Short Dump Take Profit"
+        tradeActionEntry := isTradeMarketSpot ? "Short Dump Entry" : "Down Dump"
+        tradeActionExit := isTradeMarketSpot ? "Short Pump Take Profit" : "Down Dump Take Profit"
 //        tradeReason := "Price Spike Down Detected. Change: " + tostring(procChange) + " Limit: -" + tostring(procLimit)
         tradeReason := "Price Spike Down"
         openShortDump := true
         
+    //Condition: Trend Break Out
     if (isTrendBreakOut) and (tradeTrendBreakOutDownEnabled) and (tradeOpenLongPumpEnabled)
-        tradeActionEntry := "Long Pump Entry"
-        tradeActionExit := "Long Pump Take Profit"
+        tradeActionEntry := isTradeMarketSpot ? "Long Pump Entry" : "Up Pump"
+        tradeActionExit := isTradeMarketSpot ? "Long Pump Take Profit" : "Up Take Profit"
         tradeReason := "Trend Breakout"
         openLongPump := true
         
+    //Condition: Trend Break Down
     if (isTrendBreakDown) and (tradeTrendBreakOutDownEnabled) and (tradeOpenShortDumpEnabled)
-        tradeActionEntry := "Short Dump Entry"
-        tradeActionExit := "Short Dump Take Profit"
+        tradeActionEntry := isTradeMarketSpot ? "Short Dump Entry" : "Down Dump"
+        tradeActionExit := isTradeMarketSpot ? "Short Pump Take Profit" : "Down Dump Take Profit"
         tradeReason := "Trend Breakdown"
         openShortDump := true
 
-    if (isVolumeUpHigh) and (tradeVolumeHighEnabled) and (tradeOpenLongPumpEnabled)
-        tradeActionEntry := "Long Pump Entry"
-        tradeActionExit := "Long Pump Take Profit"
+    //Condition: Volume High Up
+    if (isVolumeUpHigh) and (tradeVolumeHighEnabled) and (tradeOpenLongPumpEnabled) and (isTradeMarketSpot)
+        tradeActionEntry := isTradeMarketSpot ? "Long Pump Entry" : "Up Pump"
+        tradeActionExit := isTradeMarketSpot ? "Long Pump Take Profit" : "Up Take Profit"
         tradeReason := "High Volume Up"
         openLongPump := true
-        
-    if (isVolumeDownHigh) and (tradeVolumeHighEnabled) and (tradeOpenShortDumpEnabled)
-        tradeActionEntry := "Short Dump Entry"
-        tradeActionExit := "Short Dump Take Profit"
+    
+    //Condition: Volume High Down
+    if (isVolumeDownHigh) and (tradeVolumeHighEnabled) and (tradeOpenShortDumpEnabled) and (isTradeMarketSpot)
+        tradeActionEntry := isTradeMarketSpot ? "Short Dump Entry" : "Down Dump"
+        tradeActionExit := isTradeMarketSpot ? "Short Pump Take Profit" : "Down Dump Take Profit"
         tradeReason := "High Volume Down"
         openShortDump := true
 
+    //Condition: Body Break Out
     if (isBodyBreakOut) and (tradeBodyBreakOutDownEnabled) and (tradeOpenLongPumpEnabled)
-        tradeActionEntry := "Long Pump Entry"
-        tradeActionExit := "Long Pump Take Profit"
+        tradeActionEntry := isTradeMarketSpot ? "Long Pump Entry" : "Up Pump"
+        tradeActionExit := isTradeMarketSpot ? "Long Pump Take Profit" : "Up Take Profit"
         tradeReason := "Body Breakout"
         openLongPump := true
         
+    //Condition: Body Break Down
     if (isBodyBreakDown) and (tradeBodyBreakOutDownEnabled) and (tradeOpenShortDumpEnabled)
-        tradeActionEntry := "Short Dump Entry"
-        tradeActionExit := "Short Dump Take Profit"
+        tradeActionEntry := isTradeMarketSpot ? "Short Dump Entry" : "Down Dump"
+        tradeActionExit := isTradeMarketSpot ? "Short Pump Take Profit" : "Down Dump Take Profit"
         tradeReason := "Body Breakdown"
         openShortDump := true
 
+    //Condition: RSI High Cross / Down Trend
     if (isRSIHighCrossDown) and (tradeRSIEnabled) and (isShortCondition) and (tradeOpenShortEnabled)
-        tradeActionEntry := "Short Entry"
-        tradeActionExit := "Short Take Profit"
+        tradeActionEntry := isTradeMarketSpot ? "Short Entry" : "Down"
+        tradeActionExit := isTradeMarketSpot ? "Short Take Profit" : "Down Take Profit"
         tradeReason := "RSI High Cross Down"
         openShort := true
     
@@ -1071,9 +1431,10 @@ if (window())
     //     tradeReason := "RSI High Cross Mid"
     //     openShort := true
 
+    //Condition: RSI Low Cross / Up Trend
     if (isRSILowCrossUp) and (tradeRSIEnabled) and (isLongCondition) and (tradeOpenLongEnabled)
-        tradeActionEntry := "Long Entry"
-        tradeActionExit := "Long Take Profit"
+        tradeActionEntry := isTradeMarketSpot ? "Long Entry" : "Up"
+        tradeActionExit :=  isTradeMarketSpot ? "Long Take Profit" : "Up Take Profit"
         tradeReason := "RSI Low Cross Up"
         openLong := true
 
@@ -1083,25 +1444,83 @@ if (window())
     //     tradeReason := "RSI Low Cross Mid"
     //     openLong := true
 
-    if (isStochHighCrossDown) and (tradeStochEnabled) and (isShortCondition) and (tradeOpenShortEnabled)
-        tradeActionEntry := "Short Entry"
-        tradeActionExit := "Short Take Profit"
+    //Condition: Stoch High Cross / Down Trend
+    if (isStochHighCrossDown) and (tradeStochEnabled) and (tradeOpenShortEnabled) and (((isShortCondition) and (isTradeMarketSpot)) or (isTradeMarketBinary))
+        tradeActionEntry := isTradeMarketSpot ? "Short Entry" : "Down"
+        tradeActionExit := isTradeMarketSpot ? "Short Take Profit" : "Down Take Profit"
         tradeReason := "Stoch High Cross Down"
         openShort := true
 
-    if (isStochLowCrossUp) and (tradeStochEnabled) and (isLongCondition) and (tradeOpenLongEnabled)
-        tradeActionEntry := "Long Entry"
-        tradeActionExit := "Long Take Profit"
+    //Condition: Stoch Low Cross / Up Trend
+    if (isStochLowCrossUp) and (tradeStochEnabled) and (tradeOpenLongEnabled) and (((isLongCondition) and (isTradeMarketSpot)) or (isTradeMarketBinary))
+        tradeActionEntry := isTradeMarketSpot ? "Long Entry" : "Up"
+        tradeActionExit := isTradeMarketSpot ? "Long Take Profit" : "Up Take Profit"
         tradeReason := "Stoch Low Cross Up"
+        openLong := true
+        
+    //Condition: MACD Cross / RSI Low / Up Trend
+    if (isMACDCrossPivotTrendUp) and (isRSILow) and (tradeMACDTrendEnabled)
+        tradeActionEntry := isTradeMarketSpot ? "Long Entry" : "Up"
+        tradeActionExit := isTradeMarketSpot ? "Long Take Profit" : "Up Take Profit"
+        tradeReason := "MACD Cross Pivot Trend Up"
+        openLong := true
+
+    //Condition: MACD Cross / RSI High / Down Trend
+    if (isMACDCrossPivotTrendDown) and (isRSIHigh) and (tradeMACDTrendEnabled)
+        tradeActionEntry := isTradeMarketSpot ? "Short Entry" : "Down"
+        tradeActionExit := isTradeMarketSpot ? "Short Take Profit" : "Down Close"
+        tradeReason := "MACD Cross Pivot Trend Down"
+        openShort := true
+        
+    //Condition: MACD Cross Up
+    if (isMACDCrossUp) and (tradeMACDTrendEnabled) and (isTradeMarketBinary)
+        tradeActionEntry := "Up"
+        tradeActionExit := "Up Close"
+        tradeReason := "MACD Cross Up"
+        openLong := true
+
+    //Condition: MACD Cross Down
+    if (isMACDCrossDown) and (tradeMACDTrendEnabled) and (isTradeMarketBinary)
+        tradeActionEntry := "Down"
+        tradeActionExit := "Down Close"
+        tradeReason := "MACD Cross Down"
+        openShort := true
+    
+    //Condition: Resistance Break
+    if (isResistanceBreak) and (tradeSRChannelEnabled) and (isTradeMarketBinary)
+        tradeActionEntry := "Up"
+        tradeActionExit := "Up Take Profit"
+        tradeReason := "Resistance Channel Break Out"
+        openLong := true
+
+    //Condition: Support Break
+    if (isSupportBreak) and (tradeSRChannelEnabled) and (isTradeMarketBinary)
+        tradeActionEntry := "Down"
+        tradeActionExit := "Down Take Profit"
+        tradeReason := "Support Channel Reversal"
+        openShort := true
+
+    //Condition: Resistance Held
+    if (isResistanceHeld) and (tradeSRChannelEnabled) and (isTradeMarketBinary)
+        tradeActionEntry := "Down"
+        tradeActionExit := "Down Take Profit"
+        tradeReason := "Resistance Channel Reversal"
+        openShort := true
+
+    //Condition: Support Held
+    if (isSupportHeld) and (tradeSRChannelEnabled) and (isTradeMarketBinary)
+        tradeActionEntry := "Up"
+        tradeActionExit := "Up Take Profit"
+        tradeReason := "Support Channel Reversal"
         openLong := true
 
 //Logic: Filters    
     
-    if (isLowVolume and isLowVolumeEnable)
+    if (isLowVolume and isLowVolumeEnable) and (isTradeMarketSpot)
         tradeReasonDenial := "Low Volume"
         isTradeZone := false
 
-    if (isADXLow and lowAdxFilterEnable)
+    if (isADXLow and lowAdxFilterEnable) and (isTradeMarketSpot)
         tradeReasonDenial := "ADX Low"
         isTradeZone := false
         
@@ -1113,17 +1532,17 @@ if (window())
         tradeReasonDenial := trafficDirection
         isTradeZoneLong := false
 
-    if not (isTradeZone)
+    if not (isTradeZone) and (isTradeMarketSpot)
         tradeReasonDenial += "\nLong/short disallowed"
         isTradeZoneLong := false
         isTradeZoneShort := false
 
-    if not (isTradeZoneLong)
+    if not (isTradeZoneLong) and (isTradeMarketSpot)
         tradeReasonDenial += "\nLong disallowed"
         openLong := false
         openLongPump := false
 
-    if not (isTradeZoneShort)
+    if not (isTradeZoneShort) and (isTradeMarketSpot) 
         tradeReasonDenial += "\nShort disallowed"
         openShort := false
         openShortDump := false
@@ -1192,11 +1611,19 @@ if (window())
         tradeStopLossMessage = tradeBotGenerateMessageEnabled ? tradeStopLossGenerateMessage : tradeStopLossImportMessage
         tradeCloseOrderMessage = tradeBotGenerateMessageEnabled ? tradeCloseOrderGenerateMessage : tradeCloseOrderImportMessage
 
-        //Strategy: Trading Alerts
-        strategy.entry(id = strategyNameEntry, long = tradeDirection, limit = tradeTakeProfitPrice, stop = tradeStopLossPrice, alert_message = tradeStartDealMessage)
-        strategy.exit(id = strategyNameExit, from_entry = strategyNameEntry, profit = tradeTakeProfitPrice, alert_message = tradeCloseOrderMessage)
+        //Strategy: Trading Orders
 
-        isTradeEntered := true
+        if (isTradeMarketSpot)
+            strategy.entry(id = strategyNameEntry, long = tradeDirection, limit = tradeTakeProfitPrice, stop = tradeStopLossPrice, alert_message = tradeStartDealMessage)
+            isTradeEntered := true
+
+            strategy.exit(id = strategyNameExit, from_entry = strategyNameEntry, profit = tradeTakeProfitPrice, alert_message = tradeCloseOrderMessage)
+        
+        if (isTradeMarketBinary)
+            strategy.entry(id = strategyNameEntry, long = tradeDirection, alert_message = tradeStartDealMessage)
+            isTradeEntered := true
+
+            strategy.close(id = strategyNameExit, when = barssince(isTradeEntered) > 0, alert_message = tradeCloseOrderMessage)
 
         lblmsg = ""
         lblmsg += "te$: " + tostring(close)
@@ -1224,6 +1651,9 @@ if (window())
 
         isAlertTradeEntered := true
 
+    //lbl1 = label.new(bar_index,high,text=tostring(isTradeEntered), style=label.style_label_down)
+    //lbl2 = label.new(bar_index,low,text=tostring(barssince(isTradeEntered)), style=label.style_label_up)
+
     if (pivotHighAlert) or (pivotHighAlert) and (pivotAlertEnabled) and not (isAlertPivotEntered)
         sendAlert(pivotAlertMessage)
 
@@ -1234,6 +1664,11 @@ if (window())
 
         isAlertTrendEntered := true
         
+    if (srChannelAlert) and (srChannelAlertEnabled) and (isAlertSRChannelEntered)
+        sendAlert(srChannelAlertMessage)
+
+        isAlertSRChannelEntered := true
+        
 //Plot: Average Position Price
 plot(series = strategy.position_avg_price, title = "Position", color = color.blue, linewidth = 2, style = plot.style_linebr)
 
@@ -1242,3 +1677,9 @@ plot(series = strategy.position_size > 0 ? tradeTakeProfitPrice : na, title = "T
 
 //Plot: Stop Loss
 plot(series = strategy.position_size < 0 ? tradeStopLossPrice : na, title = "Stop Loss", color = #FF0000, linewidth = 2, style = plot.style_linebr)
+
+//Background: Global
+bgcolor(color.new(bgColour, 75))
+
+//Bar: Global
+barcolor(barColour)
