@@ -110,85 +110,8 @@ moef (data) =>
 	moef
 	moefColor = #6d1e7f
 	[moef, moefColor]
- 
-// homodyne 
-
-// --- Start the Homodyne Discriminator Caculations
-//
-// Mutable Variables (non-series)
-HomodyneDiscriminator(data) =>
-    C1     = 0.0962
-    C2     = 0.5769
-    Df     = 0.5
-
-    //
-    float Period = na
-    C3      = (nz(Period[1])*0.075+0.54)
-    smooth    = ((data*8.0) + (data[1]*6.0) + (data[2]*4.0) + (data[3]))/10.0
-    dDeTrend  = (smooth*C1 + nz(smooth[2])*C2 - nz(smooth[4])*C2 - nz(smooth[6])*C1)*C3
-
-    // Compute InPhase and Quadrature components
-    Q1      = (dDeTrend*C1 + nz(dDeTrend[2])*C2 - nz(dDeTrend[4])*C2 - nz(dDeTrend[6])*C1)*C3
-    I1      = nz(dDeTrend[3])
-
-    // Advance Phase of I1 and Q1 by 90 degrees
-    jI      = (I1*C1 + nz(I1[2])*C2 - nz(I1[4])*C2 - nz(I1[6])*C1)*C3
-    jQ      = (Q1*C1 + nz(Q1[2])*C2 - nz(Q1[4])*C2 - nz(Q1[6])*C1)*C3
-
-    // Phaser addition for 3 bar averaging
-    I2_  = I1 - jQ
-    Q2_  = Q1 + jI
-    // Smooth i and q components before applying discriminator
-    I2 = 0.0
-    I2  := 0.2*I2_ + 0.8*nz(I2[1])
-    Q2 = 0.0
-    Q2  := 0.2*Q2_ + 0.8*nz(Q2[1])
-
-    // Extract Homodyne Discriminator
-    Re_ = I2*nz(I2[1]) + Q2*nz(Q2[1])
-    Im_ = I2*nz(Q2[1]) - Q2*nz(I2[1])
-    Re = 0.0
-    Re  := 0.2*Re_ + 0.8*nz(Re[1])
-    Im = 0.0
-    Im  := 0.2*Im_ + 0.8*nz(Im[1]) 
-
-    dp_ = iff(Re!=0 and Im!=0 , 6.28318/atan(Im/Re) , 0)
-    II  = nz(Period[1])
-    dp  = max(max(min(min(dp_,1.5*II),50),0.6667*II),6)
-    Period := dp*0.2 + nz(Period[1])*0.8
-    SmoothPeriod = 0.0
-    SmoothPeriod := 0.33*Period + nz(SmoothPeriod[1])*0.67
-    RVILength = round(SmoothPeriod*Df -1)
-    p = 0.0
-    p := p + SmoothPeriod[0]
-    p := floor(p)
-    p := round(p)
-    //plot(p)
-    //p = integer()
-    CO=volume*close-volume*open
-    HL=high*volume-low*volume
-
-    value1 = (CO + 2*CO[1] + 2*CO[2] + CO[3])/6
-    value2 = (HL + 2*HL[1] + 2*HL[2] + HL[3])/6
-    num=0.0
-    denom=0.0
-
-    looplength = 100
-    for i = 0 to looplength
-        if (i >= RVILength)
-            break
-        num:=num + value1[i]
-        denom:=denom + value2[i]
-
-    RVI=denom!=0?num/denom:0
-    RVIsig=(RVI+ 2*RVI[1] + 2*RVI[2] + RVI[3])/6
-    RVIhist = (RVI - RVIsig) * 2
-    RVIhist_color = RVIhist > 0 ? (RVIhist > RVIhist[1] ? color.lime : color.green) : (RVIhist < RVIhist[1] ? #EF3232 : color.red )
-
-    [RVI, RVIsig, RVIhist, RVIhist_color]
 
 //calculate values
-[RVI, RVIsig, RVIhist, RVIhist_color] = HomodyneDiscriminator(close)
 [d, dm, d_color] = lb_vol(vv,cc)
 [cd, cdm, cd_color] = lb_vol(volume,close)
 [theMoef, moefColor] = moef(cd)
