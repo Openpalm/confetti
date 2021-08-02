@@ -14,33 +14,45 @@
 //Usage Example: http://www.investopedia.com/ask/answers/012115/how-do-i-use-relative-vigor-index-rvi-create-forex-trading-strategy.asp
 //By Futur (Thanks to defcon for the basic RVI code)
 
-study("Homodyne Discriminator", shorttitle = '"confetti"')
-         
+study("Trend Analysis", shorttitle = 'confetti')
+getHigherTF(tf_param) => 
+    tf = input(title="Timeframe", type=input.resolution, defval="")
+    HTFo = timeframe.period == '3'   ?   '1'     : 
+     	timeframe.period == '3'   ?   '5'    : 
+      	timeframe.period == '5'   ?   '15'    : 
+      	timeframe.period == '15'  ?   '30'    : 
+      	timeframe.period == '30'  ?   '45'   : 
+      	timeframe.period == '45'  ?   '60'   : 
+      	timeframe.period == '60'  ?   '120'   : 
+      	timeframe.period == '120' ?   '180'   : 
+      	timeframe.period == '180' ?   '240'   : 
+      	timeframe.period == '240' ?   'D'     : 
+      	timeframe.period == 'D'   ?    'W'    : ""
+    [l, c, h, o, v] = security(syminfo.tickerid, tf == "" ? HTFo: tf, [low, close, high, open, volume])
 
-midline = 0
-upper = 0.5
-bottom = -0.5
-hline(midline, "Center", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
-band0 = hline(upper, "Top", color=color.new(color.green, 50), linestyle=hline.style_dashed)
-band1 = hline(bottom, "Bottom", color=color.new(color.red, 50), linestyle=hline.style_dashed)
-fill(band1, band0, color=color.rgb(126, 87, 194, 90), title="Background")
 
 norm(data) =>
     a = (data-sma(data, 3))
     b = stdev(data,3)
     ema(a/b, 12)
 
-MinMaxNorm(data) => 
-    a = data - min(data, 12)
-    b = max(data,12) - min(data,12)
-    a/b
+m_rsi(len) => 
+    src = input(close, "Source", type = input.source)
+    up = rma(max(change(src), 0), len)
+    down = rma(-min(change(src), 0), len)
+    rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+    rsi
 
-nbv(data) =>
-    volume*data/stdev(volume, 4)
-    
-// --- Start the Homodyne Discriminator Caculations
-//
-// Mutable Variables (non-series)
+// Calculate RSI
+rsi1 = m_rsi(7)
+rsi2 = m_rsi(13)
+rsi3 = m_rsi(23)
+rsicross = rsi1 > rsi2 and rsi2 > rsi3
+// Calculate RSI
+rsi = rsi(close, 7)
+rsi_color = rsi > 75 ? color.red : rsi < 27 ? rsicross? color.yellow : color.green : color.white
+
+
 HomodyneDiscriminator(data) =>
     C1     = 0.0962
     C2     = 0.5769
@@ -108,29 +120,25 @@ HomodyneDiscriminator(data) =>
 
     RVI=denom!=0?num/denom:0
     RVIsig=(RVI+ 2*RVI[1] + 2*RVI[2] + RVI[3])/6
-    [RVI, RVIsig]
+    RVIhist = (RVI - RVIsig) * 2
+    RVIhist_color = RVIhist > 0 ? (RVIhist > RVIhist[1] ? color.lime : color.green) : (RVIhist < RVIhist[1] ? #EF3232 : color.red )
 
-[RVI, RVIsig] = HomodyneDiscriminator(close)
-//p1 = plot(RVI,color=color.lime,style=plot.style_line,linewidth=1)
-//p2 = plot(RVIsig,color=color.red,style=plot.style_line,linewidth=1)
-
-hist = (RVI - RVIsig) * 2
-hist_color = hist > 0 ? (hist > hist[1] ? color.lime : color.green) : (hist < hist[1] ? #EF3232 : color.red )
-plot(hist, color=hist_color, title="Hist", style=plot.style_columns, transp=75)
-
-
+    [RVI, RVIsig, RVIhist, RVIhist_color]
 
 // lazybear vol
-slow = input(12, "Short period")
-fast = input(26, "Long period")
-signal = input(9, "Smoothing period")
+lb_vol(vol,cloz) =>
+    slow = input(12, "Short period")
+    fast = input(26, "Long period")
+    signal = input(9, "Smoothing period")
+    maFast = ema( vol * cloz, fast ) / ema( vol, fast ) 
+    maSlow = ema( vol * cloz, slow ) / ema( vol, slow )
+    d = maSlow - maFast 
+    maSignal = ema( d, signal ) 
+    dm=d-maSignal
+    d_color=d>=0? (d>d[1]?color.green:color.orange) : (d<d[1]?color.red:color.orange)
+    [d, dm, d_color]
+//lazybear vol + exponential filter
 
-maFast = ema( volume * close, fast ) / ema( volume, fast ) 
-maSlow = ema( volume * close, slow ) / ema( volume, slow ) 
-d = maSlow - maFast 
-maSignal = ema( d, signal ) 
-dm=d-maSignal
-d_color=d>=0? (d>d[1]?color.green:color.orange) : (d<d[1]?color.red:color.orange)
 
 moef (data) =>
 	src = norm(data)/2
@@ -147,8 +155,26 @@ moef (data) =>
 	moef
 	moefColor = #6d1e7f
 	[moef, moefColor]
-         
 
+
+[l, c, h, o, v] = getHigherTF("")      
+[RVI, RVIsig, RVIhist, RVIhist_color] = HomodyneDiscriminator(c)
+[d, dm, d_color] = lb_vol(v, c)
 [theMoef, moefColor] = moef(d)
+
+
+// plottingo
+
+midline = 0
+upper = 1
+bottom = -1
+hline(midline, "Center", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
+band0 = hline(upper, "Top", color=color.new(color.green, 50), linestyle=hline.style_dashed)
+band1 = hline(bottom, "Bottom", color=color.new(color.red, 50), linestyle=hline.style_dashed)
+fill(band1, band0, color=color.rgb(126, 87, 194, 90), title="Background")
+
+plot(RVIhist, color=RVIhist_color, title="Hist", style=plot.style_columns, transp=20)
 plot((theMoef), title="MOEF", linewidth=1, color=color.fuchsia, transp=0)
 dl=plot(norm(d)/2, style=plot.style_line, color=d_color, linewidth=2)
+
+//plot(norm(rsi)/3+1, color= rsi_color, transp=0, linewidth=2, style=plot.style_circles, title="RSI")

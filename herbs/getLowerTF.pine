@@ -1,0 +1,14 @@
+getLowerTF() => 
+    tf = input(title="Timeframe", type=input.resolution, defval="")
+    LTFo = timeframe.period == '3'   ?   '1'     : 
+      timeframe.period == '5'   ?  '3'     : 
+      timeframe.period == '15'  ?  '5'      : 
+      timeframe.period == '30'  ?  '15'     : 
+      timeframe.period == '45'  ?  '30'    : 
+      timeframe.period == '60'  ?  '45'    : 
+      timeframe.period == '120' ?  '60'     : 
+      timeframe.period == '180' ?  '120'    : 
+      timeframe.period == '240' ?  '180'    : 
+      timeframe.period == 'D'   ?  '240'    : 
+      timeframe.period ==  'W'  ?  'D'      : ""
+  [l, c, h, o, v] = security(syminfo.tickerid, tf == "" ? LTFo: tf, [low, close, high, open, volume])

@@ -1,0 +1,28 @@
+stochMomentum(lo,hi,cloz) =>
+
+    a = input(5, "Stochastic K Length")
+    b = input(3, "Stochastic D Length")
+    // Range Calculation
+    ll = lowest (lo, a)
+    hh = highest (hi, a)
+    diff = hh - ll
+    rdiff = cloz- (hh+ll)/2
+    // Nested Moving Average for smoother curves
+    avgrel = ema(ema(rdiff,b),b)
+    avgdiff = ema(ema(diff,b),b)
+    // SMI calculations
+    SMI = avgdiff != 0 ? (avgrel/(avgdiff/2)*100) : 0
+    SMIsignal = ema(SMI,b)
+    [SMI, SMIsignal]
+
+[SMI, SMIsignal] = stochMomentum(low, high, close)  
+//stoch
+stochShift = 140
+SMIColor = if (change(SMIsignal) > 0)
+    color.green
+else 
+    color.red
+plot(SMI-stochShift, title = "Stochastic Momentum Index")
+plot(SMIsignal-stochShift,  color=SMIColor, title = "SMI Signal Line")
+stochOverbought = hline(40-stochShift, color = color.red, title = "Over Bought")
+stochOversold = hline(-40-stochShift, color = color.green, title = "Over Sold"
