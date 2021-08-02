@@ -125,6 +125,10 @@ HomodyneDiscriminator(data) =>
 
     [RVI, RVIsig, RVIhist, RVIhist_color]
 
+
+
+
+
 // lazybear vol
 lb_vol(vol,cloz) =>
     slow = input(12, "Short period")
@@ -176,5 +180,8 @@ fill(band1, band0, color=color.rgb(126, 87, 194, 90), title="Background")
 plot(RVIhist, color=RVIhist_color, title="Hist", style=plot.style_columns, transp=20)
 plot((theMoef), title="MOEF", linewidth=1, color=color.fuchsia, transp=0)
 dl=plot(norm(d)/2, style=plot.style_line, color=d_color, linewidth=2)
+
+
+
 
 //plot(norm(rsi)/3+1, color= rsi_color, transp=0, linewidth=2, style=plot.style_circles, title="RSI")

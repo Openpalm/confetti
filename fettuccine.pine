@@ -193,5 +193,6 @@ if array.size(ziggyzags) >= 6
 
 
 plot(basis, "Basis", color=uptrend ? c_up : c_dn)
-plot(f_LazyLine(close,50), style=plot.style_line, color = color.orange,  linewidth=1 )
-plot(f_LazyLine(close,100), style=plot.style_line, color = color.white,  linewidth=1 )
+plot(sma(close,50), style=plot.style_line, color = color.orange,  linewidth=1)
+plot(sma(close,100), style=plot.style_line, color = color.white,  linewidth=1)
+plot(sma(close,800), style=plot.style_line, color = color.red,  linewidth=1)
