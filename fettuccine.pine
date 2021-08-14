@@ -16,7 +16,9 @@
 ////////
 // Seek Menu
 study("zigzag ma bb confetti", shorttitle = "fettucini heuristics",  max_labels_count=51, max_lines_count=50, overlay = true)
-showLables = input(title="Show Lables", group="Display", type=input.bool, defval=true)
+lableShow = input(title="Show Lables", group="Display", type=input.bool, defval=true)
+labelTiny = input(title="Show Prices", group="Display", type=input.bool, defval=true)
+//size.small
 
 //bb
 bb() => 
@@ -36,8 +38,8 @@ bbp1 = plot(upper, "Upper", color=#2962FF, offset = offset)
 bbp2 = plot(lower, "Lower", color=#2962FF, offset = offset)
 //plot(basis, "Basis", color=#FF6D00, offset = offset)
 fill(bbp1, bbp2, title = "Background", color=color.rgb(33, 150, 243, 95))
-// LB MA uptrend
 
+// LB MA uptrend
 f_LazyLine(_data, _length) =>
     w1 = 0, w2 = 0, w3 = 0
     L1 = 0.0, L2 = 0.0, L3 = 0.0
@@ -153,9 +155,11 @@ if array.size(ziggyzags) >= 6
         float val1 = array.get(ziggyzags, 2)
         int point1 = round(array.get(ziggyzags, 3))
         pr = dir1 == 1 ? tostring(high) : tostring(low)
-        plabel := dir1 == 1 ? tostring(high,"#.##") : tostring(low,"#.##")
-        plabel += "\n" + tostring(truncate(int(percent(val,val1)), 2)) + "%"
-
+        if labelTiny 
+            plabel := dir1 == 1 ? tostring(high,"#.##") : tostring(low,"#.##")
+            plabel += "\n" + tostring(truncate(int(percent(val,val1)), 2)) + "%"
+        if labelTiny
+            plabel := tostring(truncate(int(percent(val,val1)), 2)) + "%"
         labelcol := dir1 == 1 ? array.get(ziggyzags, 0) > out ? upcolor : downcolor : array.get(ziggyzags, 0) < out ? downcolor : upcolor
 
         if change(val1) == 0 and change(point1) == 0
@@ -165,9 +169,12 @@ if array.size(ziggyzags) >= 6
         if (false)
             zzline1 := line.new(x1 = point, x2 = point1, y1 = val, y2 = val1, color = dir1 == 1 ? upcolor : downcolor, width = zigwidth, style = zigstyle == "Solid" ? line.style_solid : line.style_dotted)
     
-        if (showLables)
+        if (lableShow)
             zzlabel1 := label.new(x = point, y = val, text = plabel, color = labelcol, textcolor = txtcol, style = dir1 == 1 ? label.style_label_down : label.style_label_up) 
-            label.set_size(zzlabel1, size.small)
+            labelSize = size.small
+            //if labelTiny
+            //    labelSize := size.tiny
+            label.set_size(zzlabel1, labelSize)
     pROCLevel = roc(close, fastPeriod)
     rocLevels = 0.0
     for n = 0 to fastPeriod-1
@@ -182,7 +189,7 @@ if array.size(ziggyzags) >= 6
 
     labelcol := dir1 == 1 ? array.get(ziggyzags, 0) > out ? upcolor : downcolor : array.get(ziggyzags, 0) < out ? downcolor : upcolor
         
-    if (showLables)
+    if (lableShow)
         if zzlabelcur == na
             zzlabelcur := label.new(bar_index+1, close, text = plabel, textcolor = color.white, style = label.style_label_left, color = close > open ? color.green : color.red)
         label.set_xy(zzlabelcur,bar_index+1, close)
@@ -195,4 +202,4 @@ if array.size(ziggyzags) >= 6
 plot(basis, "Basis", color=uptrend ? c_up : c_dn)
 plot(sma(close,50), style=plot.style_line, color = color.orange,  linewidth=1)
 plot(sma(close,100), style=plot.style_line, color = color.white,  linewidth=1)
-plot(sma(close,800), style=plot.style_line, color = color.red,  linewidth=1)
+//plot(sma(close,800), style=plot.style_line, color = color.red,  linewidth=1)
